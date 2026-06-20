@@ -6,12 +6,7 @@ import classnames from 'classnames';
 import styles from './index.module.scss';
 import StatusTag from '@/components/StatusTag';
 import { useInspection } from '@/store/inspectionContext';
-
-const formatTime = () => {
-  const now = new Date();
-  const pad = (n: number) => n.toString().padStart(2, '0');
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
-};
+import { RectifyReplyType } from '@/types';
 
 const RectifyPage: React.FC = () => {
   const router = useRouter();
@@ -19,7 +14,7 @@ const RectifyPage: React.FC = () => {
 
   const {
     getRectifyById, getRecordById,
-    updateRectifyItem, updateRecord
+    updateRectifyItem, updateRecord, addRectifyReply
   } = useInspection();
 
   const [role, setRole] = useState<'supervisor' | 'material'>('material');
@@ -35,36 +30,9 @@ const RectifyPage: React.FC = () => {
     return getRecordById(rectifyItem.inspectionId);
   }, [rectifyItem, getRecordById]);
 
-  const timeline = useMemo(() => {
-    if (!rectifyItem) return [];
-    const items: any[] = [
-      {
-        type: 'warning',
-        title: '监理提交整改通知',
-        time: rectifyItem.submitTime,
-        desc: rectifyItem.description,
-        photos: rectifyItem.photos
-      }
-    ];
-    if (rectifyItem.reply) {
-      items.push({
-        type: 'active',
-        title: '材料员整改回复',
-        time: rectifyItem.replyTime,
-        desc: rectifyItem.reply,
-        photos: []
-      });
-    }
-    if (rectifyItem.status === 'done') {
-      items.push({
-        type: 'success',
-        title: '监理确认通过',
-        time: rectifyItem.replyTime,
-        desc: '整改合格，同意验收',
-        photos: []
-      });
-    }
-    return items;
+  const hasMaterialReply = useMemo(() => {
+    if (!rectifyItem) return false;
+    return rectifyItem.replies.some(r => r.type === 'material_reply');
   }, [rectifyItem]);
 
   const handleUpload = () => {
@@ -82,57 +50,70 @@ const RectifyPage: React.FC = () => {
     setUploadPhotos(prev => prev.filter((_, i) => i !== idx));
   };
 
-  const handleSubmitReply = () => {
+  const handleSubmitMaterialReply = () => {
     if (!replyText.trim() && uploadPhotos.length === 0) {
       Taro.showToast({ title: '请填写整改说明或上传照片', icon: 'none' });
       return;
     }
     if (!rectifyItem) return;
-
     Taro.showLoading({ title: '提交中...' });
     setTimeout(() => {
       Taro.hideLoading();
-      updateRectifyItem(rectifyItem.id, {
-        status: 'processing',
-        reply: replyText,
-        replyTime: formatTime(),
-        photos: [...rectifyItem.photos, ...uploadPhotos]
+      addRectifyReply(rectifyItem.id, {
+        type: 'material_reply' as RectifyReplyType,
+        role: 'material',
+        author: '材料员-刘师傅',
+        content: replyText,
+        photos: [...uploadPhotos]
       });
+      updateRectifyItem(rectifyItem.id, { status: 'processing' });
       Taro.showToast({ title: '已提交整改回复', icon: 'success' });
       setReplyText('');
       setUploadPhotos([]);
     }, 600);
   };
 
-  const handleConfirmPass = () => {
+  const handleSupervisorPass = () => {
     if (!rectifyItem) return;
     Taro.showModal({
       title: '确认整改通过',
       content: '确认该整改事项已完成，材料符合要求？',
       success: (res) => {
         if (res.confirm) {
+          const passContent = replyText.trim() || '经现场复验，整改合格，资料齐全，同意验收。';
+          addRectifyReply(rectifyItem.id, {
+            type: 'supervisor_pass' as RectifyReplyType,
+            role: 'supervisor',
+            author: '张监理',
+            content: passContent,
+            photos: []
+          });
           updateRectifyItem(rectifyItem.id, { status: 'done' });
           if (relatedInspection) {
             updateRecord(relatedInspection.id, { status: 'rectified' });
           }
           Taro.showToast({ title: '已确认整改通过', icon: 'success' });
+          setReplyText('');
           setTimeout(() => Taro.navigateBack(), 1200);
         }
       }
     });
   };
 
-  const handleRequireMore = () => {
+  const handleSupervisorReject = () => {
     if (!replyText.trim()) {
-      Taro.showToast({ title: '请填写补充要求', icon: 'none' });
+      Taro.showToast({ title: '请填写退回原因和补充要求', icon: 'none' });
       return;
     }
     if (!rectifyItem) return;
-    updateRectifyItem(rectifyItem.id, {
-      status: 'pending',
-      reply: `${rectifyItem.reply || ''}\n\n【监理补充要求】${replyText}`,
-      replyTime: formatTime()
+    addRectifyReply(rectifyItem.id, {
+      type: 'supervisor_reject' as RectifyReplyType,
+      role: 'supervisor',
+      author: '张监理',
+      content: replyText,
+      photos: []
     });
+    updateRectifyItem(rectifyItem.id, { status: 'pending' });
     Taro.showToast({ title: '已发送补充要求', icon: 'none' });
     setReplyText('');
     setTimeout(() => Taro.navigateBack(), 1200);
@@ -154,9 +135,21 @@ const RectifyPage: React.FC = () => {
     );
   }
 
-  const canMaterialSubmit = role === 'material' && (rectifyItem.status === 'pending' || rectifyItem.status === 'processing');
-  const canSupervisorConfirm = role === 'supervisor' && rectifyItem.status === 'processing' && rectifyItem.reply;
-  const canSupervisorReject = role === 'supervisor' && rectifyItem.status === 'processing';
+  const canMaterialSubmit = role === 'material' && rectifyItem.status !== 'done';
+  const canSupervisorAct = role === 'supervisor' && rectifyItem.status === 'processing' && hasMaterialReply;
+
+  const getReplyTypeMeta = (type: RectifyReplyType) => {
+    switch (type) {
+      case 'material_reply':
+        return { label: '材料员整改回复', color: '#FF7D00', cls: 'typeMaterial', dot: '📝' };
+      case 'supervisor_pass':
+        return { label: '监理确认通过', color: '#00B42A', cls: 'typePass', dot: '✅' };
+      case 'supervisor_reject':
+        return { label: '监理要求补充', color: '#F53F3F', cls: 'typeReject', dot: '⚠️' };
+      default:
+        return { label: '操作记录', color: '#86909C', cls: 'typeDefault', dot: '📌' };
+    }
+  };
 
   return (
     <View className={styles.page}>
@@ -223,6 +216,15 @@ const RectifyPage: React.FC = () => {
         <View className={styles.descBox}>
           <Text>{rectifyItem.description}</Text>
         </View>
+        {rectifyItem.photos && rectifyItem.photos.length > 0 && (
+          <View className={styles.photoGrid}>
+            {rectifyItem.photos.map((p, i) => (
+              <View key={i} className={styles.photoItem}>
+                <Image className={styles.photoImg} src={p} mode="aspectFill" />
+              </View>
+            ))}
+          </View>
+        )}
       </View>
 
       <View className={styles.section}>
@@ -255,36 +257,66 @@ const RectifyPage: React.FC = () => {
       <View className={styles.section}>
         <View className={styles.sectionTitle}>
           <Text className={styles.sectionIcon}>⏱️</Text>
-          <Text>整改进度</Text>
+          <Text>整改进度时间线</Text>
         </View>
+
         <View className={styles.timeline}>
-          {timeline.map((item, idx) => (
-            <View key={idx} className={styles.timelineItem}>
-              <View className={`${styles.timelineDot} ${styles[item.type]}`} />
-              <View className={styles.timelineContent}>
-                <Text className={styles.timelineTitle}>{item.title}</Text>
-                <Text className={styles.timelineTime}>{item.time}</Text>
-                <Text className={styles.timelineDesc}>{item.desc}</Text>
-                {item.photos && item.photos.length > 0 && (
-                  <View className={styles.photoGrid}>
-                    {item.photos.map((photo: string, pIdx: number) => (
-                      <View key={pIdx} className={styles.photoItem}>
-                        <Image className={styles.photoImg} src={photo} mode="aspectFill" />
-                      </View>
-                    ))}
-                  </View>
-                )}
+          <View className={styles.timelineItem}>
+            <View className={classnames(styles.timelineDot, styles.dotWarning)} />
+            <View className={styles.timelineContent}>
+              <View className={styles.timelineHeader}>
+                <Text className={styles.timelineTitle}>监理提交整改通知</Text>
               </View>
+              <Text className={styles.timelineTime}>{rectifyItem.submitTime}</Text>
+              <Text className={styles.timelineDesc}>{rectifyItem.description}</Text>
+              {rectifyItem.photos && rectifyItem.photos.length > 0 && (
+                <View className={styles.photoGrid}>
+                  {rectifyItem.photos.map((p, i) => (
+                    <View key={i} className={styles.photoItem}>
+                      <Image className={styles.photoImg} src={p} mode="aspectFill" />
+                    </View>
+                  ))}
+                </View>
+              )}
             </View>
-          ))}
+          </View>
+
+          {rectifyItem.replies.map(reply => {
+            const meta = getReplyTypeMeta(reply.type);
+            return (
+              <View key={reply.id} className={styles.timelineItem}>
+                <View className={classnames(styles.timelineDot, styles[meta.cls])} />
+                <View className={styles.timelineContent}>
+                  <View className={styles.timelineHeader}>
+                    <Text className={styles.timelineTitle} style={{ color: meta.color }}>
+                      {meta.dot} {meta.label}
+                    </Text>
+                  </View>
+                  <Text className={styles.timelineTime}>
+                    {reply.time} · {reply.author}
+                  </Text>
+                  <Text className={styles.timelineDesc}>{reply.content}</Text>
+                  {reply.photos && reply.photos.length > 0 && (
+                    <View className={styles.photoGrid}>
+                      {reply.photos.map((p, i) => (
+                        <View key={i} className={styles.photoItem}>
+                          <Image className={styles.photoImg} src={p} mode="aspectFill" />
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              </View>
+            );
+          })}
         </View>
       </View>
 
-      {role === 'material' && canMaterialSubmit && (
+      {canMaterialSubmit && (
         <View className={styles.section}>
           <View className={styles.sectionTitle}>
             <Text className={styles.sectionIcon}>📝</Text>
-            <Text>提交整改回复</Text>
+            <Text>提交整改回复（可多次补充）</Text>
           </View>
           <Textarea
             className={styles.textarea}
@@ -314,48 +346,43 @@ const RectifyPage: React.FC = () => {
             ))}
             <View className={styles.uploadBtn} onClick={handleUpload}>
               <Text className={styles.uploadIcon}>+</Text>
-              <Text>上传退场/补充资料照片</Text>
+              <Text>上传退场/补充资料</Text>
             </View>
           </View>
         </View>
       )}
 
-      {role === 'supervisor' && canSupervisorConfirm && (
+      {canSupervisorAct && (
         <View className={styles.section}>
           <View className={styles.sectionTitle}>
             <Text className={styles.sectionIcon}>✅</Text>
-            <Text>监理确认</Text>
+            <Text>监理确认（基于最新回复）</Text>
           </View>
-          <View className={styles.replySection}>
-            <Text className={styles.replyLabel}>材料员回复</Text>
-            <Text className={styles.replyContent}>{rectifyItem.reply}</Text>
-            <Text className={styles.replyTime}>回复时间：{rectifyItem.replyTime}</Text>
-          </View>
-          <View style={{ marginTop: '16rpx' }}>
-            <Textarea
-              className={styles.textarea}
-              placeholder='如有异议可填写补充整改要求，无异议留空后直接确认通过'
-              value={replyText}
-              onInput={e => setReplyText(e.detail.value)}
-            />
-          </View>
+          <Textarea
+            className={styles.textarea}
+            placeholder='通过可留空或填写验收意见；退回请填写补充要求及原因'
+            value={replyText}
+            onInput={e => setReplyText(e.detail.value)}
+          />
         </View>
       )}
 
-      {(canMaterialSubmit || canSupervisorConfirm || canSupervisorReject) && (
+      {(canMaterialSubmit || canSupervisorAct) && (
         <View className={styles.bottomBar}>
           {canMaterialSubmit && (
-            <View className={classnames(styles.btnWarning, { [styles.disabled]: !replyText.trim() && uploadPhotos.length === 0 })}
-              onClick={handleSubmitReply}>
+            <View
+              className={classnames(styles.btnWarning, { [styles.disabled]: !replyText.trim() && uploadPhotos.length === 0 })}
+              onClick={handleSubmitMaterialReply}
+            >
               <Text>提交整改回复</Text>
             </View>
           )}
-          {canSupervisorConfirm && (
+          {canSupervisorAct && (
             <>
-              <View className={styles.btnSecondary} onClick={handleRequireMore}>
-                <Text>要求补充整改</Text>
+              <View className={styles.btnSecondary} onClick={handleSupervisorReject}>
+                <Text>退回补充</Text>
               </View>
-              <View className={styles.btnPrimary} onClick={handleConfirmPass}>
+              <View className={styles.btnPrimary} onClick={handleSupervisorPass}>
                 <Text>确认整改通过</Text>
               </View>
             </>

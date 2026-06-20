@@ -240,3 +240,131 @@
   font-size: $font-size-md;
   color: $color-text-tertiary;
 }
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: $spacing-md $page-padding 0;
+  background: $color-bg-card;
+}
+
+.filterBtn {
+  display: inline-flex;
+  align-items: center;
+  padding: $spacing-sm $spacing-md;
+  background: $color-bg-page;
+  border-radius: $radius-button;
+  font-size: $font-size-sm;
+  color: $color-primary;
+  font-weight: $font-weight-medium;
+  position: relative;
+}
+
+.filterDot {
+  width: 14rpx;
+  height: 14rpx;
+  border-radius: 50%;
+  background: $color-warning;
+  margin-left: 8rpx;
+}
+
+.filterResult {
+  font-size: $font-size-sm;
+  color: $color-text-tertiary;
+}
+
+.filterPanel {
+  margin: $spacing-md $page-padding;
+  padding: $spacing-lg;
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  box-shadow: $shadow-card;
+}
+
+.filterRow {
+  display: flex;
+  align-items: center;
+  margin-bottom: $spacing-md;
+
+  &:last-of-type {
+    margin-bottom: $spacing-lg;
+  }
+}
+
+.filterLabel {
+  width: 140rpx;
+  flex-shrink: 0;
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+}
+
+.filterSelect {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: $spacing-sm $spacing-md;
+  background: $color-bg-page;
+  border-radius: $radius-md;
+  font-size: $font-size-sm;
+  color: $color-text-primary;
+}
+
+.filterArrow {
+  color: $color-text-tertiary;
+  font-size: $font-size-xs;
+  margin-left: $spacing-sm;
+}
+
+.dateRange {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+}
+
+.datePick {
+  flex: 1;
+  padding: $spacing-sm $spacing-md;
+  background: $color-bg-page;
+  border-radius: $radius-md;
+  font-size: $font-size-sm;
+  color: $color-text-primary;
+}
+
+.dateSep {
+  color: $color-text-tertiary;
+  font-size: $font-size-sm;
+}
+
+.filterActions {
+  display: flex;
+  gap: $spacing-md;
+}
+
+.resetBtn {
+  flex: 1;
+  height: $button-height-md;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: $color-bg-page;
+  color: $color-text-secondary;
+  border-radius: $radius-button;
+  font-size: $font-size-md;
+  font-weight: $font-weight-medium;
+}
+
+.applyBtn {
+  flex: 1;
+  height: $button-height-md;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: $color-primary;
+  color: #fff;
+  border-radius: $radius-button;
+  font-size: $font-size-md;
+  font-weight: $font-weight-semibold;
+}

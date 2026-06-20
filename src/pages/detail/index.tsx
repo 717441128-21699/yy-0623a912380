@@ -40,12 +40,14 @@ const DetailPage: React.FC = () => {
         desc: `共发现${record.discrepancies.length}项不符合要求`
       });
     }
-    if (relatedRectify && relatedRectify.reply) {
+    if (relatedRectify && relatedRectify.replies && relatedRectify.replies.length > 0) {
+      const latestReply = relatedRectify.replies[relatedRectify.replies.length - 1];
       items.push({
         type: 'active',
-        title: '材料员整改回复',
-        time: relatedRectify.replyTime,
-        desc: relatedRectify.reply
+        title: latestReply.type === 'supervisor_pass' ? '监理确认通过' :
+          latestReply.type === 'supervisor_reject' ? '监理要求补充' : '材料员整改回复',
+        time: latestReply.time,
+        desc: latestReply.content
       });
     }
     if (record.status === 'passed' || record.status === 'rectified') {

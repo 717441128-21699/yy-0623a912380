@@ -1,30 +1,90 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, ScrollView } from '@tarojs/components';
+import { View, Text, ScrollView, Picker } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import classnames from 'classnames';
 import styles from './index.module.scss';
 import StatusTag from '@/components/StatusTag';
-import { materialCategoryLabelMap, statusLabelMap } from '@/data/mock';
+import { materialCategoryLabelMap, statusLabelMap, mockProjects, mockBuildings } from '@/data/mock';
 import { useInspection } from '@/store/inspectionContext';
+import { MaterialCategory, InspectionStatus } from '@/types';
 
-const statusFilters = [
+const statusFilters: { key: string; label: string }[] = [
   { key: 'all', label: '全部' },
   { key: 'pending', label: '待验收' },
   { key: 'passed', label: '已通过' },
   { key: 'failed', label: '不通过' },
-  { key: 'rectifying', label: '整改中' }
+  { key: 'rectifying', label: '整改中' },
+  { key: 'rectified', label: '整改完成' }
 ];
 
+const categoryOptions: { key: string; label: string }[] = [
+  { key: 'all', label: '全部类别' },
+  { key: 'steel', label: '钢筋' },
+  { key: 'mortar', label: '砂浆' },
+  { key: 'waterproof', label: '防水卷材' },
+  { key: 'concrete', label: '混凝土' },
+  { key: 'brick', label: '砌块' },
+  { key: 'other', label: '其他' }
+];
+
+const pad = (n: number) => n.toString().padStart(2, '0');
+const todayStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+const monthAgoStr = () => {
+  const d = new Date();
+  d.setMonth(d.getMonth() - 1);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+
 const RecordsPage: React.FC = () => {
-  const [activeFilter, setActiveFilter] = useState<string>('all');
   const { records } = useInspection();
 
+  const [activeFilter, setActiveFilter] = useState<string>('all');
+  const [showFilter, setShowFilter] = useState(false);
+  const [filterProjectId, setFilterProjectId] = useState<string>('all');
+  const [filterBuildingId, setFilterBuildingId] = useState<string>('all');
+  const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterDateStart, setFilterDateStart] = useState<string>('');
+  const [filterDateEnd, setFilterDateEnd] = useState<string>('');
+
+  const filteredBuildings = useMemo(() => {
+    if (filterProjectId === 'all') return mockBuildings;
+    return mockBuildings.filter(b => b.projectId === filterProjectId);
+  }, [filterProjectId]);
+
+  const hasActiveFilters = useMemo(() => {
+    return filterProjectId !== 'all' || filterBuildingId !== 'all' || filterCategory !== 'all'
+      || filterStatus !== 'all' || filterDateStart !== '' || filterDateEnd !== '';
+  }, [filterProjectId, filterBuildingId, filterCategory, filterStatus, filterDateStart, filterDateEnd]);
+
   const filteredRecords = useMemo(() => {
-    if (activeFilter === 'all') {
-      return records;
+    let list = records;
+    if (activeFilter !== 'all') {
+      list = list.filter(r => r.status === activeFilter);
     }
-    return records.filter(r => r.status === activeFilter);
-  }, [records, activeFilter]);
+    if (filterProjectId !== 'all') {
+      list = list.filter(r => r.projectId === filterProjectId);
+    }
+    if (filterBuildingId !== 'all') {
+      list = list.filter(r => r.buildingId === filterBuildingId);
+    }
+    if (filterCategory !== 'all') {
+      list = list.filter(r => r.materialCategory === filterCategory);
+    }
+    if (filterStatus !== 'all') {
+      list = list.filter(r => r.status === filterStatus);
+    }
+    if (filterDateStart) {
+      list = list.filter(r => r.inspectTime && r.inspectTime.slice(0, 10) >= filterDateStart);
+    }
+    if (filterDateEnd) {
+      list = list.filter(r => r.inspectTime && r.inspectTime.slice(0, 10) <= filterDateEnd);
+    }
+    return list;
+  }, [records, activeFilter, filterProjectId, filterBuildingId, filterCategory, filterStatus, filterDateStart, filterDateEnd]);
 
   const stats = useMemo(() => {
     const total = records.length;
@@ -32,6 +92,15 @@ const RecordsPage: React.FC = () => {
     const pending = records.filter(r => r.status === 'pending' || r.status === 'rectifying').length;
     return { total, passed, pending };
   }, [records]);
+
+  const resetFilters = () => {
+    setFilterProjectId('all');
+    setFilterBuildingId('all');
+    setFilterCategory('all');
+    setFilterStatus('all');
+    setFilterDateStart('');
+    setFilterDateEnd('');
+  };
 
   const handleCardClick = (id: string) => {
     Taro.navigateTo({
@@ -44,6 +113,9 @@ const RecordsPage: React.FC = () => {
       url: '/pages/inspection/index'
     });
   };
+
+  const pickerProjects = [{ id: 'all', name: '全部项目' }, ...mockProjects];
+  const pickerBuildings = [{ id: 'all', name: '全部楼栋' }, ...filteredBuildings];
 
   return (
     <View className={styles.page}>
@@ -65,6 +137,111 @@ const RecordsPage: React.FC = () => {
           </View>
         </View>
       </View>
+
+      <View className={styles.toolbar}>
+        <View className={styles.filterBtn} onClick={() => setShowFilter(!showFilter)}>
+          <Text>🔍 高级筛选</Text>
+          {hasActiveFilters && <View className={styles.filterDot} />}
+        </View>
+        <Text className={styles.filterResult}>共 {filteredRecords.length} 条</Text>
+      </View>
+
+      {showFilter && (
+        <View className={styles.filterPanel}>
+          <View className={styles.filterRow}>
+            <Text className={styles.filterLabel}>项目</Text>
+            <Picker
+              mode='selector'
+              range={pickerProjects}
+              rangeKey='name'
+              value={pickerProjects.findIndex(p => p.id === filterProjectId)}
+              onChange={e => {
+                setFilterProjectId(pickerProjects[e.detail.value].id);
+                setFilterBuildingId('all');
+              }}
+            >
+              <View className={styles.filterSelect}>
+                <Text>{pickerProjects.find(p => p.id === filterProjectId)?.name || '全部项目'}</Text>
+                <Text className={styles.filterArrow}>▾</Text>
+              </View>
+            </Picker>
+          </View>
+
+          <View className={styles.filterRow}>
+            <Text className={styles.filterLabel}>楼栋</Text>
+            <Picker
+              mode='selector'
+              range={pickerBuildings}
+              rangeKey='name'
+              value={pickerBuildings.findIndex(b => b.id === filterBuildingId)}
+              onChange={e => setFilterBuildingId(pickerBuildings[e.detail.value].id)}
+            >
+              <View className={styles.filterSelect}>
+                <Text>{pickerBuildings.find(b => b.id === filterBuildingId)?.name || '全部楼栋'}</Text>
+                <Text className={styles.filterArrow}>▾</Text>
+              </View>
+            </Picker>
+          </View>
+
+          <View className={styles.filterRow}>
+            <Text className={styles.filterLabel}>材料类别</Text>
+            <Picker
+              mode='selector'
+              range={categoryOptions}
+              rangeKey='label'
+              value={categoryOptions.findIndex(c => c.key === filterCategory)}
+              onChange={e => setFilterCategory(categoryOptions[e.detail.value].key)}
+            >
+              <View className={styles.filterSelect}>
+                <Text>{categoryOptions.find(c => c.key === filterCategory)?.label || '全部类别'}</Text>
+                <Text className={styles.filterArrow}>▾</Text>
+              </View>
+            </Picker>
+          </View>
+
+          <View className={styles.filterRow}>
+            <Text className={styles.filterLabel}>验收状态</Text>
+            <Picker
+              mode='selector'
+              range={statusFilters}
+              rangeKey='label'
+              value={statusFilters.findIndex(s => s.key === filterStatus)}
+              onChange={e => setFilterStatus(statusFilters[e.detail.value].key)}
+            >
+              <View className={styles.filterSelect}>
+                <Text>{statusFilters.find(s => s.key === filterStatus)?.label || '全部状态'}</Text>
+                <Text className={styles.filterArrow}>▾</Text>
+              </View>
+            </Picker>
+          </View>
+
+          <View className={styles.filterRow}>
+            <Text className={styles.filterLabel}>日期范围</Text>
+            <View className={styles.dateRange}>
+              <Picker mode='date' value={filterDateStart} onChange={e => setFilterDateStart(e.detail.value)}>
+                <View className={styles.datePick}>
+                  <Text>{filterDateStart || '开始日期'}</Text>
+                </View>
+              </Picker>
+              <Text className={styles.dateSep}>—</Text>
+              <Picker mode='date' value={filterDateEnd} onChange={e => setFilterDateEnd(e.detail.value)}>
+                <View className={styles.datePick}>
+                  <Text>{filterDateEnd || '结束日期'}</Text>
+                </View>
+              </Picker>
+            </View>
+          </View>
+
+          <View className={styles.filterActions}>
+            <View className={styles.resetBtn} onClick={resetFilters}>
+              <Text>重置</Text>
+            </View>
+            <View className={styles.applyBtn} onClick={() => setShowFilter(false)}>
+              <Text>确定</Text>
+            </View>
+          </View>
+        </View>
+      )}
 
       <View className={styles.filterBar}>
         {statusFilters.map(item => (
@@ -131,7 +308,9 @@ const RecordsPage: React.FC = () => {
         ) : (
           <View className={styles.empty}>
             <Text className={styles.emptyIcon}>📋</Text>
-            <Text className={styles.emptyText}>暂无验收记录，点击右下角+新建</Text>
+            <Text className={styles.emptyText}>
+              {records.length === 0 ? '暂无验收记录，点击右下角+新建' : '没有符合筛选条件的记录'}
+            </Text>
           </View>
         )}
       </ScrollView>

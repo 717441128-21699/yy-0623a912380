@@ -60,6 +60,18 @@ export interface InspectionRecord {
   remark?: string;
 }
 
+export type RectifyReplyType = 'material_reply' | 'supervisor_pass' | 'supervisor_reject';
+
+export interface RectifyReply {
+  id: string;
+  type: RectifyReplyType;
+  role: 'material' | 'supervisor';
+  author: string;
+  content: string;
+  photos: string[];
+  time: string;
+}
+
 export interface RectifyItem {
   id: string;
   inspectionId: string;
@@ -70,6 +82,5 @@ export interface RectifyItem {
   submitTime: string;
   deadline: string;
   photos: string[];
-  reply?: string;
-  replyTime?: string;
+  replies: RectifyReply[];
 }

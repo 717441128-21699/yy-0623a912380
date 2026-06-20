@@ -128,15 +128,36 @@
     box-shadow: 0 0 0 6rpx rgba(22, 93, 255, 0.15);
   }
 
-  &.success {
+  &.success, &.typePass {
     border-color: $color-success;
     background: $color-success;
   }
 
-  &.warning {
+  &.warning, &.dotWarning {
     border-color: $color-warning;
     background: $color-warning;
   }
+
+  &.typeMaterial {
+    border-color: #FF7D00;
+    background: #FF7D00;
+  }
+
+  &.typeReject {
+    border-color: $color-error;
+    background: $color-error;
+  }
+
+  &.typeDefault {
+    border-color: $color-text-tertiary;
+    background: $color-text-tertiary;
+  }
+}
+
+.timelineHeader {
+  display: flex;
+  align-items: center;
+  margin-bottom: 4rpx;
 }
 
 .timelineContent {

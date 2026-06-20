@@ -136,7 +136,7 @@ const TodoPage: React.FC = () => {
               )}
               <View className={styles.cardFooter}>
                 <Text className={styles.submitter}>
-                  {item.reply ? '材料员已回复，待监理确认' : '等待材料员处理'}
+                  {item.replies && item.replies.length > 0 ? '材料员已回复，待监理确认' : '等待材料员处理'}
                 </Text>
                 {isUrgent(item.deadline) && item.status !== 'done' && (
                   <View className={styles.deadlineTag}>

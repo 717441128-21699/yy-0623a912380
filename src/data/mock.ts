@@ -207,8 +207,17 @@ export const mockRectifyItems: RectifyItem[] = [
     submitTime: '2024-06-17 16:45',
     deadline: '2024-06-20',
     photos: ['https://picsum.photos/id/210/400/300', 'https://picsum.photos/id/211/400/300'],
-    reply: '已联系厂家补发同批次产品，预计明日到场。已补充FS20240528034批次的合格证及检验报告。',
-    replyTime: '2024-06-18 10:30'
+    replies: [
+      {
+        id: 'rp1',
+        type: 'material_reply',
+        role: 'material',
+        author: '材料员-刘师傅',
+        content: '已联系厂家补发同批次产品，预计明日到场。已补充FS20240528034批次的合格证及检验报告，请查验。',
+        photos: ['https://picsum.photos/id/240/400/300', 'https://picsum.photos/id/241/400/300'],
+        time: '2024-06-18 10:30'
+      }
+    ]
   },
   {
     id: 'r2',
@@ -220,8 +229,7 @@ export const mockRectifyItems: RectifyItem[] = [
     submitTime: '2024-06-18 09:15',
     deadline: '2024-06-19',
     photos: ['https://picsum.photos/id/220/400/300'],
-    reply: '',
-    replyTime: ''
+    replies: []
   },
   {
     id: 'r3',
@@ -233,8 +241,26 @@ export const mockRectifyItems: RectifyItem[] = [
     submitTime: '2024-06-15 15:00',
     deadline: '2024-06-17',
     photos: ['https://picsum.photos/id/230/400/300', 'https://picsum.photos/id/231/400/300', 'https://picsum.photos/id/232/400/300'],
-    reply: '已将不合格批次全部退场，重新进场HRB400 φ8mm钢筋2吨，经验收合格。',
-    replyTime: '2024-06-16 14:20'
+    replies: [
+      {
+        id: 'rp3',
+        type: 'material_reply',
+        role: 'material',
+        author: '材料员-陈工',
+        content: '已将不合格批次全部退场，重新进场HRB400 φ8mm钢筋2吨，随车合格证已同步上传。',
+        photos: ['https://picsum.photos/id/250/400/300', 'https://picsum.photos/id/251/400/300'],
+        time: '2024-06-16 11:20'
+      },
+      {
+        id: 'rp4',
+        type: 'supervisor_pass',
+        role: 'supervisor',
+        author: '张监理',
+        content: '经现场复验，新进场批次钢筋直径实测值符合规范要求，资料齐全，整改合格，同意验收。',
+        photos: [],
+        time: '2024-06-16 14:20'
+      }
+    ]
   }
 ];
 

@@ -38,7 +38,10 @@ const getDeadline = () => {
 };
 
 const InspectionPage: React.FC = () => {
-  const { addRecord, addRectifyItem, setCurrentInspection } = useInspection();
+  const {
+    addRecord, addRectifyItem, setCurrentInspection,
+    findDuplicateRectify, genRecordId, genRectifyId, formatCurrentTime
+  } = useInspection();
 
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedBuilding, setSelectedBuilding] = useState<Building | null>(null);
@@ -132,7 +135,7 @@ const InspectionPage: React.FC = () => {
 
   const buildCommonRecord = (status: 'passed' | 'failed' | 'rectifying') => {
     const activeDisc = buildDiscrepancies();
-    const recordId = genId('ins');
+    const recordId = genRecordId();
     return {
       id: recordId,
       projectId: selectedProject?.id || '',
@@ -151,7 +154,7 @@ const InspectionPage: React.FC = () => {
       discrepancies: activeDisc,
       photos: getDefaultPhotos(),
       inspector: '张监理',
-      inspectTime: formatTime(),
+      inspectTime: formatCurrentTime(),
       remark: voiceText || undefined
     };
   };
@@ -196,40 +199,57 @@ const InspectionPage: React.FC = () => {
       Taro.showToast({ title: '请至少选择一项不符项', icon: 'none' });
       return;
     }
-    Taro.showModal({
-      title: '确认验收不通过',
-      content: `共${activeDisc.length}项不符，确认后将生成整改通知并跳转至待办整改`,
-      success: (res) => {
-        if (res.confirm) {
-          const record = buildCommonRecord('rectifying');
-          addRecord(record);
+    const duplicate = findDuplicateRectify(
+      selectedProject!.id, selectedBuilding!.id,
+      selectedMaterial!.name, batchNumber
+    );
+    const doCreate = () => {
+      const record = buildCommonRecord('rectifying');
+      addRecord(record);
 
-          const discTexts = activeDisc
-            .map(d => `${d.label}：报验值${d.expected}，实测值${d.actual || '待填写'}`)
-            .join('；');
+      const discTexts = activeDisc
+        .map(d => `${d.label}：报验值${d.expected}，实测值${d.actual || '待填写'}`)
+        .join('；');
 
-          const rectifyItem = {
-            id: genId('rec'),
-            inspectionId: record.id,
-            title: `${record.materialName}${activeDisc[0].label}不符整改`,
-            description: `${record.projectName}-${record.buildingName}，${record.materialName}验收发现以下问题：${discTexts}${voiceText ? '。补充说明：' + voiceText : ''}`,
-            status: 'pending' as const,
-            submitter: '张监理',
-            submitTime: formatTime(),
-            deadline: getDeadline(),
-            photos: [],
-            reply: '',
-            replyTime: ''
-          };
-          addRectifyItem(rectifyItem);
+      const rectifyItem = {
+        id: genRectifyId(),
+        inspectionId: record.id,
+        title: `${record.materialName}${activeDisc[0].label}不符整改`,
+        description: `${record.projectName}-${record.buildingName}，${record.materialName}验收发现以下问题：${discTexts}${voiceText ? '。补充说明：' + voiceText : ''}`,
+        status: 'pending' as const,
+        submitter: '张监理',
+        submitTime: formatCurrentTime(),
+        deadline: getDeadline(),
+        photos: [],
+        replies: []
+      };
+      addRectifyItem(rectifyItem);
 
-          Taro.showToast({ title: '已生成整改通知', icon: 'success' });
-          setTimeout(() => {
-            Taro.switchTab({ url: '/pages/todo/index' });
-          }, 1500);
+      Taro.showToast({ title: '已生成整改通知', icon: 'success' });
+      setTimeout(() => {
+        Taro.switchTab({ url: '/pages/todo/index' });
+      }, 1500);
+    };
+
+    if (duplicate) {
+      Taro.showModal({
+        title: '⚠️ 检测到相似整改',
+        content: `该项目/楼栋/材料/批号已有一条未完成整改：\n「${duplicate.title}」\n是否仍要继续生成新的整改待办？`,
+        confirmText: '继续生成',
+        cancelText: '取消',
+        success: (res) => {
+          if (res.confirm) doCreate();
         }
-      }
-    });
+      });
+    } else {
+      Taro.showModal({
+        title: '确认验收不通过',
+        content: `共${activeDisc.length}项不符，确认后将生成整改通知并跳转至待办整改`,
+        success: (res) => {
+          if (res.confirm) doCreate();
+        }
+      });
+    }
   };
 
   const renderPicker = () => {
