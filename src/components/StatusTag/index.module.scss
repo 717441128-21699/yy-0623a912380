@@ -1,0 +1,47 @@
+@use '@/styles/variables.scss' as *;
+
+.statusTag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4rpx 16rpx;
+  border-radius: $radius-xs;
+  font-size: $font-size-xs;
+  font-weight: $font-weight-medium;
+  white-space: nowrap;
+}
+
+.pending {
+  background: rgba(22, 93, 255, 0.1);
+  color: $color-primary;
+}
+
+.passed {
+  background: rgba(0, 180, 42, 0.1);
+  color: $color-success;
+}
+
+.failed {
+  background: rgba(245, 63, 63, 0.1);
+  color: $color-error;
+}
+
+.rectifying {
+  background: rgba(255, 125, 0, 0.1);
+  color: $color-warning;
+}
+
+.rectified {
+  background: rgba(0, 180, 42, 0.1);
+  color: $color-success;
+}
+
+.done {
+  background: rgba(0, 180, 42, 0.1);
+  color: $color-success;
+}
+
+.processing {
+  background: rgba(255, 125, 0, 0.1);
+  color: $color-warning;
+}

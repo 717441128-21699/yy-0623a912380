@@ -1,0 +1,148 @@
+@use '@/styles/variables.scss' as *;
+
+.page {
+  min-height: 100vh;
+  background: $color-bg-page;
+  padding-bottom: 40rpx;
+}
+
+.header {
+  background: linear-gradient(135deg, $color-primary 0%, $color-primary-light 100%);
+  padding: 64rpx $page-padding $spacing-xl;
+  color: #fff;
+}
+
+.userInfo {
+  display: flex;
+  align-items: center;
+}
+
+.avatar {
+  width: 128rpx;
+  height: 128rpx;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 56rpx;
+  margin-right: $spacing-lg;
+  border: 4rpx solid rgba(255, 255, 255, 0.3);
+}
+
+.userDetail {
+  flex: 1;
+}
+
+.userName {
+  font-size: $font-size-xl;
+  font-weight: $font-weight-semibold;
+  margin-bottom: 8rpx;
+}
+
+.userRole {
+  font-size: $font-size-sm;
+  opacity: 0.85;
+}
+
+.projectBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6rpx 16rpx;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: $radius-button;
+  font-size: $font-size-xs;
+  margin-top: $spacing-sm;
+}
+
+.statsCard {
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  margin: -40rpx $page-padding $spacing-md;
+  padding: $spacing-lg;
+  box-shadow: $shadow-card;
+  display: flex;
+}
+
+.statsItem {
+  flex: 1;
+  text-align: center;
+
+  & + & {
+    border-left: 1rpx solid $color-divider;
+  }
+}
+
+.statsNum {
+  font-size: 40rpx;
+  font-weight: $font-weight-bold;
+  color: $color-primary;
+  line-height: 1.2;
+  margin-bottom: 6rpx;
+}
+
+.statsLabel {
+  font-size: $font-size-sm;
+  color: $color-text-tertiary;
+}
+
+.menuGroup {
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  margin: $spacing-md $page-padding;
+  overflow: hidden;
+  box-shadow: $shadow-card;
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  padding: $spacing-lg;
+  border-bottom: 1rpx solid $color-divider;
+  transition: background $transition-fast;
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &:active {
+    background: $color-bg-hover;
+  }
+}
+
+.menuIcon {
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: $radius-md;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32rpx;
+  margin-right: $spacing-md;
+  background: rgba(22, 93, 255, 0.1);
+  color: $color-primary;
+}
+
+.menuText {
+  flex: 1;
+  font-size: $font-size-md;
+  color: $color-text-primary;
+}
+
+.menuArrow {
+  font-size: $font-size-lg;
+  color: $color-text-tertiary;
+}
+
+.groupTitle {
+  font-size: $font-size-sm;
+  color: $color-text-tertiary;
+  padding: $spacing-md $page-padding $spacing-sm;
+}
+
+.version {
+  text-align: center;
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+  margin-top: 64rpx;
+}

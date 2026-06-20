@@ -1,0 +1,38 @@
+@use '@/styles/variables.scss' as *;
+
+.infoRow {
+  display: flex;
+  align-items: flex-start;
+  padding: $spacing-md 0;
+  border-bottom: 1rpx solid $color-divider;
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.label {
+  flex-shrink: 0;
+  width: 180rpx;
+  font-size: $font-size-md;
+  color: $color-text-tertiary;
+  line-height: 1.5;
+}
+
+.value {
+  flex: 1;
+  font-size: $font-size-md;
+  color: $color-text-primary;
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+.highlight {
+  color: $color-primary;
+  font-weight: $font-weight-medium;
+}
+
+.error {
+  color: $color-error;
+  font-weight: $font-weight-medium;
+}

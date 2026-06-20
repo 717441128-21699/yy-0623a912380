@@ -1,0 +1,76 @@
+@use '@/styles/variables.scss' as *;
+
+.photoItem {
+  position: relative;
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: $radius-md;
+  overflow: hidden;
+  background: $color-bg-hover;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.uploaded {
+  background: $color-bg-card;
+}
+
+.image {
+  width: 100%;
+  height: 100%;
+}
+
+.placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: $color-text-tertiary;
+  font-size: $font-size-sm;
+}
+
+.plusIcon {
+  font-size: 48rpx;
+  line-height: 1;
+  margin-bottom: 8rpx;
+  color: $color-text-tertiary;
+}
+
+.label {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 8rpx 12rpx;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-size: $font-size-xs;
+  text-align: center;
+}
+
+.deleteBtn {
+  position: absolute;
+  top: 4rpx;
+  right: 4rpx;
+  width: 40rpx;
+  height: 40rpx;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 28rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  z-index: 2;
+}
+
+.missing {
+  border: 2rpx dashed $color-error;
+  background: rgba(245, 63, 63, 0.05);
+}
+
+.missingLabel {
+  color: $color-error;
+}

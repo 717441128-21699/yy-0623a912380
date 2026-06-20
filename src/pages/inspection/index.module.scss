@@ -1,0 +1,379 @@
+@use '@/styles/variables.scss' as *;
+
+.page {
+  min-height: 100vh;
+  background: $color-bg-page;
+  padding-bottom: 160rpx;
+}
+
+.section {
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  margin: $spacing-md $page-padding;
+  padding: $spacing-lg;
+  box-shadow: $shadow-card;
+}
+
+.sectionTitle {
+  font-size: $font-size-lg;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+  margin-bottom: $spacing-lg;
+  display: flex;
+  align-items: center;
+}
+
+.stepBadge {
+  width: 40rpx;
+  height: 40rpx;
+  border-radius: 50%;
+  background: $color-primary;
+  color: #fff;
+  font-size: $font-size-sm;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: $spacing-sm;
+  font-weight: $font-weight-medium;
+}
+
+.formItem {
+  display: flex;
+  align-items: center;
+  padding: $spacing-md 0;
+  border-bottom: 1rpx solid $color-divider;
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.formLabel {
+  flex-shrink: 0;
+  width: 180rpx;
+  font-size: $font-size-md;
+  color: $color-text-secondary;
+}
+
+.formValue {
+  flex: 1;
+  font-size: $font-size-md;
+  color: $color-text-primary;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.arrow {
+  font-size: $font-size-md;
+  color: $color-text-tertiary;
+  margin-left: $spacing-xs;
+}
+
+.selectText {
+  color: $color-text-tertiary;
+}
+
+.inputField {
+  flex: 1;
+  text-align: right;
+  font-size: $font-size-md;
+  color: $color-text-primary;
+}
+
+.inputFieldLeft {
+  flex: 1;
+  text-align: left;
+  font-size: $font-size-md;
+  color: $color-text-primary;
+}
+
+.checkSection {
+  margin-top: $spacing-md;
+}
+
+.checkTitle {
+  font-size: $font-size-md;
+  font-weight: $font-weight-medium;
+  color: $color-text-primary;
+  margin-bottom: $spacing-md;
+}
+
+.discrepancyList {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-sm;
+}
+
+.discrepancyItem {
+  display: flex;
+  align-items: flex-start;
+  padding: $spacing-md;
+  border: 2rpx solid $color-border;
+  border-radius: $radius-md;
+  transition: all $transition-fast;
+
+  &.active {
+    border-color: $color-error;
+    background: rgba(245, 63, 63, 0.05);
+  }
+}
+
+.checkbox {
+  width: 40rpx;
+  height: 40rpx;
+  border: 2rpx solid $color-border;
+  border-radius: 50%;
+  margin-right: $spacing-md;
+  margin-top: 2rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all $transition-fast;
+
+  &.checked {
+    background: $color-error;
+    border-color: $color-error;
+    color: #fff;
+    font-size: 24rpx;
+  }
+}
+
+.discContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.discLabel {
+  font-size: $font-size-md;
+  color: $color-text-primary;
+  font-weight: $font-weight-medium;
+  margin-bottom: 6rpx;
+}
+
+.discExpected {
+  font-size: $font-size-sm;
+  color: $color-text-tertiary;
+  margin-bottom: $spacing-sm;
+}
+
+.actualInputWrap {
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+}
+
+.actualLabel {
+  font-size: $font-size-sm;
+  color: $color-error;
+  flex-shrink: 0;
+}
+
+.actualInput {
+  flex: 1;
+  height: 56rpx;
+  border: 1rpx solid $color-border;
+  border-radius: $radius-sm;
+  padding: 0 $spacing-sm;
+  font-size: $font-size-sm;
+  color: $color-text-primary;
+  background: #fff;
+}
+
+.voiceSection {
+  margin-top: $spacing-md;
+  padding: $spacing-md;
+  background: $color-bg-page;
+  border-radius: $radius-md;
+}
+
+.voiceTitle {
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+  margin-bottom: $spacing-sm;
+}
+
+.voiceBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 72rpx;
+  border: 2rpx dashed $color-border;
+  border-radius: $radius-md;
+  background: #fff;
+  color: $color-text-tertiary;
+  font-size: $font-size-sm;
+  transition: all $transition-fast;
+
+  &.recording {
+    border-color: $color-error;
+    color: $color-error;
+    background: rgba(245, 63, 63, 0.05);
+  }
+}
+
+.voiceIcon {
+  font-size: 32rpx;
+  margin-right: $spacing-sm;
+}
+
+.voiceResult {
+  margin-top: $spacing-sm;
+  font-size: $font-size-sm;
+  color: $color-text-primary;
+  line-height: 1.6;
+  padding: $spacing-sm;
+  background: #fff;
+  border-radius: $radius-sm;
+  min-height: 48rpx;
+}
+
+.bottomBar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: $spacing-md $page-padding;
+  padding-bottom: calc($spacing-md + env(safe-area-inset-bottom));
+  background: $color-bg-card;
+  box-shadow: 0 -2rpx 12rpx rgba(0, 0, 0, 0.06);
+  display: flex;
+  gap: $spacing-md;
+  z-index: 100;
+}
+
+.btnSecondary {
+  @include button-reset;
+  flex: 1;
+  height: $button-height-lg;
+  border-radius: $radius-button;
+  background: $color-bg-page;
+  color: $color-text-secondary;
+  font-size: $font-size-md;
+  font-weight: $font-weight-medium;
+  transition: all $transition-base;
+
+  &:active {
+    opacity: 0.8;
+    transform: scale(0.98);
+  }
+}
+
+.btnPrimary {
+  @include button-reset;
+  flex: 2;
+  height: $button-height-lg;
+  border-radius: $radius-button;
+  background: linear-gradient(135deg, $color-primary 0%, $color-primary-light 100%);
+  color: #fff;
+  font-size: $font-size-md;
+  font-weight: $font-weight-semibold;
+  transition: all $transition-base;
+
+  &:active {
+    opacity: 0.9;
+    transform: scale(0.98);
+  }
+}
+
+.btnDanger {
+  @include button-reset;
+  flex: 2;
+  height: $button-height-lg;
+  border-radius: $radius-button;
+  background: linear-gradient(135deg, $color-error 0%, #ff6b6b 100%);
+  color: #fff;
+  font-size: $font-size-md;
+  font-weight: $font-weight-semibold;
+  transition: all $transition-base;
+
+  &:active {
+    opacity: 0.9;
+    transform: scale(0.98);
+  }
+}
+
+.tipBox {
+  padding: $spacing-md;
+  background: rgba(255, 125, 0, 0.1);
+  border-radius: $radius-md;
+  margin-bottom: $spacing-md;
+}
+
+.tipText {
+  font-size: $font-size-sm;
+  color: $color-warning;
+  line-height: 1.6;
+}
+
+.pickerModal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+}
+
+.pickerContent {
+  width: 100%;
+  background: $color-bg-card;
+  border-radius: $radius-xl $radius-xl 0 0;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.pickerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: $spacing-md $spacing-lg;
+  border-bottom: 1rpx solid $color-divider;
+}
+
+.pickerCancel {
+  font-size: $font-size-md;
+  color: $color-text-tertiary;
+}
+
+.pickerTitle {
+  font-size: $font-size-lg;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+}
+
+.pickerConfirm {
+  font-size: $font-size-md;
+  color: $color-primary;
+  font-weight: $font-weight-medium;
+}
+
+.pickerOptions {
+  max-height: 600rpx;
+  overflow-y: auto;
+}
+
+.pickerOption {
+  padding: $spacing-md $spacing-lg;
+  font-size: $font-size-md;
+  color: $color-text-primary;
+  border-bottom: 1rpx solid $color-divider;
+  transition: background $transition-fast;
+
+  &.selected {
+    color: $color-primary;
+    font-weight: $font-weight-medium;
+    background: rgba(22, 93, 255, 0.05);
+  }
+
+  &:active {
+    background: $color-bg-hover;
+  }
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
