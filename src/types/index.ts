@@ -60,7 +60,17 @@ export interface InspectionRecord {
   remark?: string;
 }
 
-export type RectifyReplyType = 'material_reply' | 'supervisor_pass' | 'supervisor_reject';
+export type RectifyReplyType = 'material_reply' | 'supervisor_pass' | 'supervisor_reject' | 'supervisor_reinspect';
+
+export interface ReinspectionRecord {
+  id: string;
+  replyId: string;
+  author: string;
+  conclusion: 'passed' | 'rejected';
+  content: string;
+  photos: string[];
+  time: string;
+}
 
 export interface RectifyReply {
   id: string;
@@ -70,6 +80,7 @@ export interface RectifyReply {
   content: string;
   photos: string[];
   time: string;
+  reinspection?: ReinspectionRecord;
 }
 
 export interface RectifyItem {

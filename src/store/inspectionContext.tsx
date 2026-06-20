@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { InspectionRecord, RectifyItem, RectifyReply } from '@/types';
+import Taro from '@tarojs/taro';
+import { InspectionRecord, RectifyItem, RectifyReply, ReinspectionRecord } from '@/types';
 import { mockInspectionRecords, mockRectifyItems } from '@/data/mock';
 
 const LS_KEY_RECORDS = 'mi_records_v1';
@@ -16,24 +17,24 @@ const genId = (prefix: string) => {
   return `${prefix}${Date.now()}${Math.floor(Math.random() * 1000)}`;
 };
 
-const readLS = <T>(key: string, fallback: T): T => {
+const readTaroStorage = async <T>(key: string, fallback: T): Promise<T> => {
   try {
-    if (typeof localStorage === 'undefined') return fallback;
-    const raw = localStorage.getItem(key);
-    if (!raw) return fallback;
-    return JSON.parse(raw) as T;
+    const res = await Taro.getStorage({ key });
+    if (res && res.data !== null && res.data !== undefined) {
+      return JSON.parse(res.data) as T;
+    }
+    return fallback;
   } catch (e) {
-    console.warn('[LS] read failed', key, e);
+    console.warn('[Storage] read failed', key, e);
     return fallback;
   }
 };
 
-const writeLS = (key: string, value: any) => {
+const writeTaroStorage = async (key: string, value: any) => {
   try {
-    if (typeof localStorage === 'undefined') return;
-    localStorage.setItem(key, JSON.stringify(value));
+    await Taro.setStorage({ key, data: JSON.stringify(value) });
   } catch (e) {
-    console.warn('[LS] write failed', key, e);
+    console.warn('[Storage] write failed', key, e);
   }
 };
 
@@ -41,6 +42,7 @@ interface InspectionContextType {
   records: InspectionRecord[];
   rectifyItems: RectifyItem[];
   currentInspection: Partial<InspectionRecord> | null;
+  storageLoaded: boolean;
   addRecord: (record: InspectionRecord) => void;
   updateRecord: (id: string, updates: Partial<InspectionRecord>) => void;
   getRecordById: (id: string) => InspectionRecord | undefined;
@@ -48,6 +50,7 @@ interface InspectionContextType {
   updateRectifyItem: (id: string, updates: Partial<RectifyItem>) => void;
   getRectifyById: (id: string) => RectifyItem | undefined;
   addRectifyReply: (rectifyId: string, reply: Omit<RectifyReply, 'id' | 'time'>) => void;
+  addReinspection: (rectifyId: string, replyId: string, reinspection: Omit<ReinspectionRecord, 'id' | 'replyId' | 'time'>) => void;
   findDuplicateRectify: (projectId: string, buildingId: string, materialName: string, batchNumber: string) => RectifyItem | undefined;
   setCurrentInspection: (data: Partial<InspectionRecord> | null) => void;
   clearCurrentInspection: () => void;
@@ -59,13 +62,38 @@ interface InspectionContextType {
 const InspectionContext = createContext<InspectionContextType | undefined>(undefined);
 
 export const InspectionProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [records, setRecords] = useState<InspectionRecord[]>(() => readLS(LS_KEY_RECORDS, mockInspectionRecords));
-  const [rectifyItems, setRectifyItems] = useState<RectifyItem[]>(() => readLS(LS_KEY_RECTIFY, mockRectifyItems));
-  const [currentInspection, setCurrentInspectionState] = useState<Partial<InspectionRecord> | null>(() => readLS(LS_KEY_CURRENT, null));
+  const [records, setRecords] = useState<InspectionRecord[]>(mockInspectionRecords);
+  const [rectifyItems, setRectifyItems] = useState<RectifyItem[]>(mockRectifyItems);
+  const [currentInspection, setCurrentInspectionState] = useState<Partial<InspectionRecord> | null>(null);
+  const [storageLoaded, setStorageLoaded] = useState(false);
 
-  useEffect(() => { writeLS(LS_KEY_RECORDS, records); }, [records]);
-  useEffect(() => { writeLS(LS_KEY_RECTIFY, rectifyItems); }, [rectifyItems]);
-  useEffect(() => { writeLS(LS_KEY_CURRENT, currentInspection); }, [currentInspection]);
+  useEffect(() => {
+    const init = async () => {
+      const storedRecords = await readTaroStorage<InspectionRecord[]>(LS_KEY_RECORDS, mockInspectionRecords);
+      const storedRectify = await readTaroStorage<RectifyItem[]>(LS_KEY_RECTIFY, mockRectifyItems);
+      const storedCurrent = await readTaroStorage<Partial<InspectionRecord> | null>(LS_KEY_CURRENT, null);
+      setRecords(storedRecords);
+      setRectifyItems(storedRectify);
+      setCurrentInspectionState(storedCurrent);
+      setStorageLoaded(true);
+    };
+    init();
+  }, []);
+
+  useEffect(() => {
+    if (!storageLoaded) return;
+    writeTaroStorage(LS_KEY_RECORDS, records);
+  }, [records, storageLoaded]);
+
+  useEffect(() => {
+    if (!storageLoaded) return;
+    writeTaroStorage(LS_KEY_RECTIFY, rectifyItems);
+  }, [rectifyItems, storageLoaded]);
+
+  useEffect(() => {
+    if (!storageLoaded) return;
+    writeTaroStorage(LS_KEY_CURRENT, currentInspection);
+  }, [currentInspection, storageLoaded]);
 
   const addRecord = (record: InspectionRecord) => {
     setRecords(prev => [record, ...prev]);
@@ -99,6 +127,25 @@ export const InspectionProvider: React.FC<{ children: ReactNode }> = ({ children
     }));
   };
 
+  const addReinspection = (rectifyId: string, replyId: string, reinspection: Omit<ReinspectionRecord, 'id' | 'replyId' | 'time'>) => {
+    setRectifyItems(prev => prev.map(r => {
+      if (r.id !== rectifyId) return r;
+      const newReinspection: ReinspectionRecord = {
+        ...reinspection,
+        id: genId('re'),
+        replyId,
+        time: formatTime()
+      };
+      return {
+        ...r,
+        replies: r.replies.map(rep => {
+          if (rep.id !== replyId) return rep;
+          return { ...rep, reinspection: newReinspection };
+        })
+      };
+    }));
+  };
+
   const findDuplicateRectify = (projectId: string, buildingId: string, materialName: string, batchNumber: string) => {
     return rectifyItems.find(r => {
       if (r.status === 'done') return false;
@@ -123,6 +170,7 @@ export const InspectionProvider: React.FC<{ children: ReactNode }> = ({ children
         records,
         rectifyItems,
         currentInspection,
+        storageLoaded,
         addRecord,
         updateRecord,
         getRecordById,
@@ -130,6 +178,7 @@ export const InspectionProvider: React.FC<{ children: ReactNode }> = ({ children
         updateRectifyItem,
         getRectifyById,
         addRectifyReply,
+        addReinspection,
         findDuplicateRectify,
         setCurrentInspection,
         clearCurrentInspection,

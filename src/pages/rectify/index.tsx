@@ -6,7 +6,7 @@ import classnames from 'classnames';
 import styles from './index.module.scss';
 import StatusTag from '@/components/StatusTag';
 import { useInspection } from '@/store/inspectionContext';
-import { RectifyReplyType } from '@/types';
+import { RectifyReplyType, ReinspectionRecord } from '@/types';
 
 const RectifyPage: React.FC = () => {
   const router = useRouter();
@@ -14,12 +14,16 @@ const RectifyPage: React.FC = () => {
 
   const {
     getRectifyById, getRecordById,
-    updateRectifyItem, updateRecord, addRectifyReply
+    updateRectifyItem, updateRecord,
+    addRectifyReply, addReinspection
   } = useInspection();
 
   const [role, setRole] = useState<'supervisor' | 'material'>('material');
   const [replyText, setReplyText] = useState('');
   const [uploadPhotos, setUploadPhotos] = useState<string[]>([]);
+  const [activeReinspectReplyId, setActiveReinspectReplyId] = useState<string | null>(null);
+  const [reinspectPhotos, setReinspectPhotos] = useState<string[]>([]);
+  const [reinspectText, setReinspectText] = useState('');
 
   const rectifyItem = useMemo(() => {
     return getRectifyById(id || '');
@@ -30,9 +34,10 @@ const RectifyPage: React.FC = () => {
     return getRecordById(rectifyItem.inspectionId);
   }, [rectifyItem, getRecordById]);
 
-  const hasMaterialReply = useMemo(() => {
-    if (!rectifyItem) return false;
-    return rectifyItem.replies.some(r => r.type === 'material_reply');
+  const lastMaterialReply = useMemo(() => {
+    if (!rectifyItem) return null;
+    const replies = rectifyItem.replies.filter(r => r.type === 'material_reply');
+    return replies.length > 0 ? replies[replies.length - 1] : null;
   }, [rectifyItem]);
 
   const handleUpload = () => {
@@ -46,8 +51,23 @@ const RectifyPage: React.FC = () => {
     });
   };
 
+  const handleReinspectUpload = () => {
+    Taro.chooseImage({
+      count: 6,
+      sizeType: ['compressed'],
+      sourceType: ['camera', 'album'],
+      success: (res) => {
+        setReinspectPhotos(prev => [...prev, ...res.tempFilePaths]);
+      }
+    });
+  };
+
   const handleDeletePhoto = (idx: number) => {
     setUploadPhotos(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleDeleteReinspectPhoto = (idx: number) => {
+    setReinspectPhotos(prev => prev.filter((_, i) => i !== idx));
   };
 
   const handleSubmitMaterialReply = () => {
@@ -70,6 +90,52 @@ const RectifyPage: React.FC = () => {
       Taro.showToast({ title: '已提交整改回复', icon: 'success' });
       setReplyText('');
       setUploadPhotos([]);
+    }, 600);
+  };
+
+  const handleStartReinspect = (replyId: string) => {
+    setActiveReinspectReplyId(replyId);
+    setReinspectPhotos([]);
+    setReinspectText('');
+  };
+
+  const handleCancelReinspect = () => {
+    setActiveReinspectReplyId(null);
+    setReinspectPhotos([]);
+    setReinspectText('');
+  };
+
+  const handleSubmitReinspect = (conclusion: 'passed' | 'rejected') => {
+    if (!activeReinspectReplyId || !rectifyItem) return;
+    if (!reinspectText.trim()) {
+      Taro.showToast({ title: '请填写复验结论', icon: 'none' });
+      return;
+    }
+    Taro.showLoading({ title: '提交中...' });
+    setTimeout(() => {
+      Taro.hideLoading();
+      addReinspection(rectifyItem.id, activeReinspectReplyId, {
+        author: '张监理',
+        conclusion,
+        content: reinspectText,
+        photos: [...reinspectPhotos]
+      });
+      if (conclusion === 'passed') {
+        updateRectifyItem(rectifyItem.id, { status: 'done' });
+        if (relatedInspection) {
+          updateRecord(relatedInspection.id, { status: 'rectified' });
+        }
+        Taro.showToast({ title: '复验通过，整改完成', icon: 'success' });
+      } else {
+        updateRectifyItem(rectifyItem.id, { status: 'pending' });
+        Taro.showToast({ title: '已退回，等待补充', icon: 'none' });
+      }
+      setActiveReinspectReplyId(null);
+      setReinspectPhotos([]);
+      setReinspectText('');
+      if (conclusion === 'passed') {
+        setTimeout(() => Taro.navigateBack(), 1200);
+      }
     }, 600);
   };
 
@@ -136,7 +202,7 @@ const RectifyPage: React.FC = () => {
   }
 
   const canMaterialSubmit = role === 'material' && rectifyItem.status !== 'done';
-  const canSupervisorAct = role === 'supervisor' && rectifyItem.status === 'processing' && hasMaterialReply;
+  const canSupervisorAct = role === 'supervisor' && rectifyItem.status === 'processing' && lastMaterialReply;
 
   const getReplyTypeMeta = (type: RectifyReplyType) => {
     switch (type) {
@@ -146,9 +212,50 @@ const RectifyPage: React.FC = () => {
         return { label: '监理确认通过', color: '#00B42A', cls: 'typePass', dot: '✅' };
       case 'supervisor_reject':
         return { label: '监理要求补充', color: '#F53F3F', cls: 'typeReject', dot: '⚠️' };
+      case 'supervisor_reinspect':
+        return { label: '监理复验记录', color: '#722ED1', cls: 'typeReinspect', dot: '🔍' };
       default:
         return { label: '操作记录', color: '#86909C', cls: 'typeDefault', dot: '📌' };
     }
+  };
+
+  const renderReinspectionSection = (re: ReinspectionRecord) => {
+    const isPass = re.conclusion === 'passed';
+    return (
+      <View className={styles.reinspectBox}>
+        <View style={{ display: 'flex', alignItems: 'center', marginBottom: '12rpx' }}>
+          <Text style={{
+            fontSize: '24rpx',
+            color: isPass ? '#00B42A' : '#F53F3F',
+            fontWeight: 600,
+            marginRight: '12rpx'
+          }}>
+            {isPass ? '✅ 复验通过' : '⚠️ 复验退回'}
+          </Text>
+          <Text style={{ fontSize: '22rpx', color: '#86909C' }}>
+            {re.author} · {re.time}
+          </Text>
+        </View>
+        <Text style={{ fontSize: '26rpx', color: '#4E5969', lineHeight: 1.6 }}>{re.content}</Text>
+        {re.photos && re.photos.length > 0 && (
+          <View className={styles.photoGrid} style={{ marginTop: '12rpx' }}>
+            {re.photos.map((p, i) => (
+              <View key={i} className={styles.photoItem}>
+                <Image className={styles.photoImg} src={p} mode="aspectFill" />
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  const canStartReinspect = (reply: any) => {
+    return role === 'supervisor'
+      && reply.type === 'material_reply'
+      && !reply.reinspection
+      && rectifyItem.status !== 'done'
+      && activeReinspectReplyId === null;
   };
 
   return (
@@ -190,7 +297,10 @@ const RectifyPage: React.FC = () => {
               background: role === 'supervisor' ? '#fff' : 'rgba(255,255,255,0.2)',
               color: role === 'supervisor' ? '#FF7D00' : '#fff'
             }}
-            onClick={() => setRole('supervisor')}
+            onClick={() => {
+              setRole('supervisor');
+              setActiveReinspectReplyId(null);
+            }}
           >
             <Text>切换：监理视角</Text>
           </View>
@@ -291,6 +401,14 @@ const RectifyPage: React.FC = () => {
                     <Text className={styles.timelineTitle} style={{ color: meta.color }}>
                       {meta.dot} {meta.label}
                     </Text>
+                    {canStartReinspect(reply) && (
+                      <View
+                        className={styles.reinspectBtn}
+                        onClick={() => handleStartReinspect(reply.id)}
+                      >
+                        <Text>🔍 发起复验</Text>
+                      </View>
+                    )}
                   </View>
                   <Text className={styles.timelineTime}>
                     {reply.time} · {reply.author}
@@ -303,6 +421,72 @@ const RectifyPage: React.FC = () => {
                           <Image className={styles.photoImg} src={p} mode="aspectFill" />
                         </View>
                       ))}
+                    </View>
+                  )}
+                  {reply.reinspection && renderReinspectionSection(reply.reinspection)}
+
+                  {activeReinspectReplyId === reply.id && (
+                    <View className={styles.reinspectForm}>
+                      <View className={styles.formTitle}>
+                        <Text>🔍 现场复验记录</Text>
+                      </View>
+                      <Textarea
+                        className={styles.textarea}
+                        placeholder='请填写复验结论，包括现场复核情况、是否合格等...'
+                        value={reinspectText}
+                        onInput={e => setReinspectText(e.detail.value)}
+                      />
+                      <Text style={{
+                        fontSize: '24rpx',
+                        color: '#86909C',
+                        marginBottom: '12rpx',
+                        marginTop: '-4rpx',
+                        display: 'block'
+                      }}>
+                        上传复验现场照片（可多张）
+                      </Text>
+                      <View className={styles.uploadRow}>
+                        {reinspectPhotos.map((photo, idx) => (
+                          <View key={idx} style={{ position: 'relative' }}>
+                            <View className={styles.photoItem}>
+                              <Image className={styles.photoImg} src={photo} mode="aspectFill" />
+                            </View>
+                            <View
+                              style={{
+                                position: 'absolute', top: '4rpx', right: '4rpx',
+                                width: '40rpx', height: '40rpx', borderRadius: '50%',
+                                background: 'rgba(0,0,0,0.6)', color: '#fff',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontSize: '26rpx', zIndex: 2
+                              }}
+                              onClick={() => handleDeleteReinspectPhoto(idx)}
+                            >
+                              <Text>×</Text>
+                            </View>
+                          </View>
+                        ))}
+                        <View className={styles.uploadBtn} onClick={handleReinspectUpload}>
+                          <Text className={styles.uploadIcon}>+</Text>
+                          <Text>上传复验照片</Text>
+                        </View>
+                      </View>
+                      <View className={styles.reinspectActions}>
+                        <View className={styles.cancelBtn} onClick={handleCancelReinspect}>
+                          <Text>取消</Text>
+                        </View>
+                        <View
+                          className={styles.rejectBtn}
+                          onClick={() => handleSubmitReinspect('rejected')}
+                        >
+                          <Text>复验退回</Text>
+                        </View>
+                        <View
+                          className={classnames(styles.passBtn, { [styles.disabled]: !reinspectText.trim() })}
+                          onClick={() => handleSubmitReinspect('passed')}
+                        >
+                          <Text>复验通过</Text>
+                        </View>
+                      </View>
                     </View>
                   )}
                 </View>
@@ -352,7 +536,7 @@ const RectifyPage: React.FC = () => {
         </View>
       )}
 
-      {canSupervisorAct && (
+      {canSupervisorAct && !activeReinspectReplyId && (
         <View className={styles.section}>
           <View className={styles.sectionTitle}>
             <Text className={styles.sectionIcon}>✅</Text>
@@ -367,7 +551,7 @@ const RectifyPage: React.FC = () => {
         </View>
       )}
 
-      {(canMaterialSubmit || canSupervisorAct) && (
+      {(canMaterialSubmit || (canSupervisorAct && !activeReinspectReplyId)) && (
         <View className={styles.bottomBar}>
           {canMaterialSubmit && (
             <View
@@ -377,7 +561,7 @@ const RectifyPage: React.FC = () => {
               <Text>提交整改回复</Text>
             </View>
           )}
-          {canSupervisorAct && (
+          {canSupervisorAct && !activeReinspectReplyId && (
             <>
               <View className={styles.btnSecondary} onClick={handleSupervisorReject}>
                 <Text>退回补充</Text>

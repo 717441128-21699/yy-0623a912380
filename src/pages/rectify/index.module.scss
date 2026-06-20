@@ -157,7 +157,91 @@
 .timelineHeader {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   margin-bottom: 4rpx;
+}
+
+.reinspectBtn {
+  padding: 4rpx 16rpx;
+  border-radius: 24rpx;
+  background: linear-gradient(135deg, #f5ebff 0%, #e8d8ff 100%);
+  border: 1px solid rgba(114, 46, 209, 0.2);
+  font-size: 20rpx;
+  color: #722ED1;
+  font-weight: 600;
+}
+
+.reinspectBox {
+  margin-top: 16rpx;
+  padding: 20rpx;
+  background: linear-gradient(135deg, #f5ebff 0%, #fbf5ff 100%);
+  border-radius: 12rpx;
+  border: 1px solid rgba(114, 46, 209, 0.15);
+}
+
+.reinspectForm {
+  margin-top: 20rpx;
+  padding: 24rpx;
+  background: #fff7e6;
+  border: 2px dashed #FF7D00;
+  border-radius: 16rpx;
+}
+
+.formTitle {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #FF7D00;
+  margin-bottom: 16rpx;
+}
+
+.reinspectActions {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 24rpx;
+}
+
+.cancelBtn {
+  flex: 1;
+  height: 80rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f2f3f5;
+  color: #4e5969;
+  border-radius: 40rpx;
+  font-size: 28rpx;
+  font-weight: 500;
+}
+
+.rejectBtn {
+  flex: 1.2;
+  height: 80rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffecec;
+  color: #f53f3f;
+  border-radius: 40rpx;
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.passBtn {
+  flex: 1.2;
+  height: 80rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #00b42a 0%, #00a870 100%);
+  color: #fff;
+  border-radius: 40rpx;
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.typeReinspect {
+  border-color: #722ED1;
+  background: #722ED1;
 }
 
 .timelineContent {

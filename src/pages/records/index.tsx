@@ -6,7 +6,12 @@ import styles from './index.module.scss';
 import StatusTag from '@/components/StatusTag';
 import { materialCategoryLabelMap, statusLabelMap, mockProjects, mockBuildings } from '@/data/mock';
 import { useInspection } from '@/store/inspectionContext';
-import { MaterialCategory, InspectionStatus } from '@/types';
+
+const todayStr = () => {
+  const d = new Date();
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
 
 const statusFilters: { key: string; label: string }[] = [
   { key: 'all', label: '全部' },
@@ -27,19 +32,9 @@ const categoryOptions: { key: string; label: string }[] = [
   { key: 'other', label: '其他' }
 ];
 
-const pad = (n: number) => n.toString().padStart(2, '0');
-const todayStr = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-};
-const monthAgoStr = () => {
-  const d = new Date();
-  d.setMonth(d.getMonth() - 1);
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-};
-
 const RecordsPage: React.FC = () => {
   const { records } = useInspection();
+  const today = todayStr();
 
   const [activeFilter, setActiveFilter] = useState<string>('all');
   const [showFilter, setShowFilter] = useState(false);
@@ -49,6 +44,23 @@ const RecordsPage: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterDateStart, setFilterDateStart] = useState<string>('');
   const [filterDateEnd, setFilterDateEnd] = useState<string>('');
+
+  const projectStats = useMemo(() => {
+    const stats: Record<string, Record<string, number>> = {};
+    records.forEach(r => {
+      const isToday = r.inspectTime && r.inspectTime.slice(0, 10) === today;
+      if (!stats[r.projectId]) {
+        stats[r.projectId] = {
+          today: 0, passed: 0, failed: 0, rectifying: 0, projectName: r.projectName
+        };
+      }
+      if (isToday) stats[r.projectId].today++;
+      if (r.status === 'passed' || r.status === 'rectified') stats[r.projectId].passed++;
+      if (r.status === 'failed') stats[r.projectId].failed++;
+      if (r.status === 'rectifying') stats[r.projectId].rectifying++;
+    });
+    return stats;
+  }, [records, today]);
 
   const filteredBuildings = useMemo(() => {
     if (filterProjectId === 'all') return mockBuildings;
@@ -62,8 +74,9 @@ const RecordsPage: React.FC = () => {
 
   const filteredRecords = useMemo(() => {
     let list = records;
-    if (activeFilter !== 'all') {
-      list = list.filter(r => r.status === activeFilter);
+    const effectiveStatus = filterStatus !== 'all' ? filterStatus : activeFilter;
+    if (effectiveStatus !== 'all') {
+      list = list.filter(r => r.status === effectiveStatus);
     }
     if (filterProjectId !== 'all') {
       list = list.filter(r => r.projectId === filterProjectId);
@@ -73,9 +86,6 @@ const RecordsPage: React.FC = () => {
     }
     if (filterCategory !== 'all') {
       list = list.filter(r => r.materialCategory === filterCategory);
-    }
-    if (filterStatus !== 'all') {
-      list = list.filter(r => r.status === filterStatus);
     }
     if (filterDateStart) {
       list = list.filter(r => r.inspectTime && r.inspectTime.slice(0, 10) >= filterDateStart);
@@ -100,6 +110,20 @@ const RecordsPage: React.FC = () => {
     setFilterStatus('all');
     setFilterDateStart('');
     setFilterDateEnd('');
+    setActiveFilter('all');
+  };
+
+  const handleProjectClick = (projectId: string, statusKey: string) => {
+    setFilterProjectId(projectId);
+    setFilterBuildingId('all');
+    setFilterStatus(statusKey === 'all' ? 'all' : statusKey);
+    setActiveFilter('all');
+    setShowFilter(false);
+  };
+
+  const handleProjectChange = (projectId: string) => {
+    setFilterProjectId(projectId);
+    setFilterBuildingId('all');
   };
 
   const handleCardClick = (id: string) => {
@@ -116,6 +140,22 @@ const RecordsPage: React.FC = () => {
 
   const pickerProjects = [{ id: 'all', name: '全部项目' }, ...mockProjects];
   const pickerBuildings = [{ id: 'all', name: '全部楼栋' }, ...filteredBuildings];
+
+  const getStatusFilterLabel = () => {
+    if (filterStatus !== 'all') {
+      return statusFilters.find(s => s.key === filterStatus)?.label || '';
+    }
+    if (activeFilter !== 'all') {
+      return statusFilters.find(s => s.key === activeFilter)?.label || '';
+    }
+    return '';
+  };
+
+  const getProjectFilterLabel = () => {
+    if (filterProjectId === 'all') return '';
+    const p = mockProjects.find(p => p.id === filterProjectId);
+    return p ? p.name : '';
+  };
 
   return (
     <View className={styles.page}>
@@ -138,12 +178,65 @@ const RecordsPage: React.FC = () => {
         </View>
       </View>
 
+      <View className={styles.dashboardSection}>
+        <View className={styles.dashboardHeader}>
+          <Text className={styles.dashboardTitle}>📊 今日项目复盘看板</Text>
+          <Text className={styles.dashboardDate}>{today}</Text>
+        </View>
+        <ScrollView scrollX className={styles.dashboardScroll}>
+          <View className={styles.dashboardRow}>
+            {mockProjects.map(project => {
+              const ps = projectStats[project.id] || { today: 0, passed: 0, failed: 0, rectifying: 0, projectName: project.name };
+              return (
+                <View key={project.id} className={styles.dashboardCard}>
+                  <Text className={styles.dashboardProject}>{project.name}</Text>
+                  <View className={styles.dashboardGrid}>
+                    <View
+                      className={classnames(styles.dashboardBlock, styles.blockToday)}
+                      onClick={() => handleProjectClick(project.id, 'all')}
+                    >
+                      <Text className={styles.dashboardBlockNum}>{ps.today}</Text>
+                      <Text className={styles.dashboardBlockLabel}>今日到货</Text>
+                    </View>
+                    <View
+                      className={classnames(styles.dashboardBlock, styles.blockPass)}
+                      onClick={() => handleProjectClick(project.id, 'passed')}
+                    >
+                      <Text className={styles.dashboardBlockNum}>{ps.passed}</Text>
+                      <Text className={styles.dashboardBlockLabel}>通过</Text>
+                    </View>
+                    <View
+                      className={classnames(styles.dashboardBlock, styles.blockFail)}
+                      onClick={() => handleProjectClick(project.id, 'failed')}
+                    >
+                      <Text className={styles.dashboardBlockNum}>{ps.failed}</Text>
+                      <Text className={styles.dashboardBlockLabel}>不通过</Text>
+                    </View>
+                    <View
+                      className={classnames(styles.dashboardBlock, styles.blockRect)}
+                      onClick={() => handleProjectClick(project.id, 'rectifying')}
+                    >
+                      <Text className={styles.dashboardBlockNum}>{ps.rectifying}</Text>
+                      <Text className={styles.dashboardBlockLabel}>整改中</Text>
+                    </View>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        </ScrollView>
+      </View>
+
       <View className={styles.toolbar}>
         <View className={styles.filterBtn} onClick={() => setShowFilter(!showFilter)}>
           <Text>🔍 高级筛选</Text>
           {hasActiveFilters && <View className={styles.filterDot} />}
         </View>
-        <Text className={styles.filterResult}>共 {filteredRecords.length} 条</Text>
+        <Text className={styles.filterResult}>
+          共 {filteredRecords.length} 条
+          {getProjectFilterLabel() && ` · ${getProjectFilterLabel()}`}
+          {getStatusFilterLabel() && ` · ${getStatusFilterLabel()}`}
+        </Text>
       </View>
 
       {showFilter && (
@@ -155,10 +248,7 @@ const RecordsPage: React.FC = () => {
               range={pickerProjects}
               rangeKey='name'
               value={pickerProjects.findIndex(p => p.id === filterProjectId)}
-              onChange={e => {
-                setFilterProjectId(pickerProjects[e.detail.value].id);
-                setFilterBuildingId('all');
-              }}
+              onChange={e => handleProjectChange(pickerProjects[e.detail.value].id)}
             >
               <View className={styles.filterSelect}>
                 <Text>{pickerProjects.find(p => p.id === filterProjectId)?.name || '全部项目'}</Text>
@@ -206,7 +296,10 @@ const RecordsPage: React.FC = () => {
               range={statusFilters}
               rangeKey='label'
               value={statusFilters.findIndex(s => s.key === filterStatus)}
-              onChange={e => setFilterStatus(statusFilters[e.detail.value].key)}
+              onChange={e => {
+                setFilterStatus(statusFilters[e.detail.value].key);
+                setActiveFilter('all');
+              }}
             >
               <View className={styles.filterSelect}>
                 <Text>{statusFilters.find(s => s.key === filterStatus)?.label || '全部状态'}</Text>
@@ -247,8 +340,14 @@ const RecordsPage: React.FC = () => {
         {statusFilters.map(item => (
           <View
             key={item.key}
-            className={classnames(styles.filterItem, activeFilter === item.key && styles.active)}
-            onClick={() => setActiveFilter(item.key)}
+            className={classnames(
+              styles.filterItem,
+              activeFilter === item.key && filterStatus === 'all' && styles.active
+            )}
+            onClick={() => {
+              setActiveFilter(item.key);
+              setFilterStatus('all');
+            }}
           >
             <Text>{item.label}</Text>
           </View>
