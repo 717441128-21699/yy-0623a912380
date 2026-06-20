@@ -6,6 +6,7 @@ import { mockInspectionRecords, mockRectifyItems } from '@/data/mock';
 const LS_KEY_RECORDS = 'mi_records_v1';
 const LS_KEY_RECTIFY = 'mi_rectify_v1';
 const LS_KEY_CURRENT = 'mi_current_v1';
+const LS_KEY_PHOTOS = 'mi_photos_v1';
 
 const formatTime = () => {
   const now = new Date();
@@ -15,6 +16,52 @@ const formatTime = () => {
 
 const genId = (prefix: string) => {
   return `${prefix}${Date.now()}${Math.floor(Math.random() * 1000)}`;
+};
+
+const convertPhotoToBase64 = (filePath: string): Promise<string> => {
+  return new Promise((resolve) => {
+    if (filePath.startsWith('data:')) {
+      resolve(filePath);
+      return;
+    }
+    if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+      resolve(filePath);
+      return;
+    }
+    try {
+      const fs = Taro.getFileSystemManager();
+      fs.readFile({
+        filePath,
+        encoding: 'base64',
+        success: (res) => {
+          const ext = filePath.toLowerCase().endsWith('.png') ? 'png' : 'jpeg';
+          resolve(`data:image/${ext};base64,${res.data}`);
+        },
+        fail: () => resolve(filePath)
+      });
+    } catch (e) {
+      try {
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', filePath, true);
+        xhr.responseType = 'blob';
+        xhr.onload = () => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string || filePath);
+          reader.onerror = () => resolve(filePath);
+          reader.readAsDataURL(xhr.response);
+        };
+        xhr.onerror = () => resolve(filePath);
+        xhr.send();
+      } catch (e2) {
+        resolve(filePath);
+      }
+    }
+  });
+};
+
+const convertPhotos = async (photos: string[]): Promise<string[]> => {
+  const results = await Promise.all(photos.map(p => convertPhotoToBase64(p)));
+  return results;
 };
 
 const readTaroStorage = async <T>(key: string, fallback: T): Promise<T> => {
@@ -54,6 +101,7 @@ interface InspectionContextType {
   findDuplicateRectify: (projectId: string, buildingId: string, materialName: string, batchNumber: string) => RectifyItem | undefined;
   setCurrentInspection: (data: Partial<InspectionRecord> | null) => void;
   clearCurrentInspection: () => void;
+  persistPhotos: (photos: string[]) => Promise<string[]>;
   genRecordId: () => string;
   genRectifyId: () => string;
   formatCurrentTime: () => string;
@@ -164,6 +212,10 @@ export const InspectionProvider: React.FC<{ children: ReactNode }> = ({ children
 
   const clearCurrentInspection = () => setCurrentInspectionState(null);
 
+  const persistPhotos = async (photos: string[]): Promise<string[]> => {
+    return convertPhotos(photos);
+  };
+
   return (
     <InspectionContext.Provider
       value={{
@@ -182,6 +234,7 @@ export const InspectionProvider: React.FC<{ children: ReactNode }> = ({ children
         findDuplicateRectify,
         setCurrentInspection,
         clearCurrentInspection,
+        persistPhotos,
         genRecordId: () => genId('ins'),
         genRectifyId: () => genId('r'),
         formatCurrentTime: formatTime

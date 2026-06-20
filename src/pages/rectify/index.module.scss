@@ -244,6 +244,18 @@
   background: #722ED1;
 }
 
+.roundTag {
+  display: inline-block;
+  margin-left: 8rpx;
+  padding: 0 12rpx;
+  border-radius: 16rpx;
+  font-size: 18rpx;
+  background: rgba(255, 125, 0, 0.12);
+  color: #FF7D00;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
 .timelineContent {
   background: $color-bg-page;
   border-radius: $radius-md;

@@ -15,7 +15,7 @@ const RectifyPage: React.FC = () => {
   const {
     getRectifyById, getRecordById,
     updateRectifyItem, updateRecord,
-    addRectifyReply, addReinspection
+    addRectifyReply, addReinspection, persistPhotos
   } = useInspection();
 
   const [role, setRole] = useState<'supervisor' | 'material'>('material');
@@ -70,13 +70,14 @@ const RectifyPage: React.FC = () => {
     setReinspectPhotos(prev => prev.filter((_, i) => i !== idx));
   };
 
-  const handleSubmitMaterialReply = () => {
+  const handleSubmitMaterialReply = async () => {
     if (!replyText.trim() && uploadPhotos.length === 0) {
       Taro.showToast({ title: '请填写整改说明或上传照片', icon: 'none' });
       return;
     }
     if (!rectifyItem) return;
     Taro.showLoading({ title: '提交中...' });
+    const persistedPhotos = await persistPhotos([...uploadPhotos]);
     setTimeout(() => {
       Taro.hideLoading();
       addRectifyReply(rectifyItem.id, {
@@ -84,7 +85,7 @@ const RectifyPage: React.FC = () => {
         role: 'material',
         author: '材料员-刘师傅',
         content: replyText,
-        photos: [...uploadPhotos]
+        photos: persistedPhotos
       });
       updateRectifyItem(rectifyItem.id, { status: 'processing' });
       Taro.showToast({ title: '已提交整改回复', icon: 'success' });
@@ -105,20 +106,21 @@ const RectifyPage: React.FC = () => {
     setReinspectText('');
   };
 
-  const handleSubmitReinspect = (conclusion: 'passed' | 'rejected') => {
+  const handleSubmitReinspect = async (conclusion: 'passed' | 'rejected') => {
     if (!activeReinspectReplyId || !rectifyItem) return;
     if (!reinspectText.trim()) {
       Taro.showToast({ title: '请填写复验结论', icon: 'none' });
       return;
     }
     Taro.showLoading({ title: '提交中...' });
+    const persistedPhotos = await persistPhotos([...reinspectPhotos]);
     setTimeout(() => {
       Taro.hideLoading();
       addReinspection(rectifyItem.id, activeReinspectReplyId, {
         author: '张监理',
         conclusion,
         content: reinspectText,
-        photos: [...reinspectPhotos]
+        photos: persistedPhotos
       });
       if (conclusion === 'passed') {
         updateRectifyItem(rectifyItem.id, { status: 'done' });
@@ -250,12 +252,27 @@ const RectifyPage: React.FC = () => {
     );
   };
 
+  const lastMaterialReplyId = useMemo(() => {
+    if (!rectifyItem) return null;
+    const materialReplies = rectifyItem.replies.filter(r => r.type === 'material_reply' && !r.reinspection);
+    return materialReplies.length > 0 ? materialReplies[materialReplies.length - 1].id : null;
+  }, [rectifyItem]);
+
   const canStartReinspect = (reply: any) => {
     return role === 'supervisor'
       && reply.type === 'material_reply'
       && !reply.reinspection
+      && reply.id === lastMaterialReplyId
       && rectifyItem.status !== 'done'
       && activeReinspectReplyId === null;
+  };
+
+  const getReplyRound = (replyIndex: number) => {
+    let round = 0;
+    for (let i = 0; i <= replyIndex && i < rectifyItem.replies.length; i++) {
+      if (rectifyItem.replies[i].type === 'material_reply') round++;
+    }
+    return round;
   };
 
   return (
@@ -391,8 +408,9 @@ const RectifyPage: React.FC = () => {
             </View>
           </View>
 
-          {rectifyItem.replies.map(reply => {
+          {rectifyItem.replies.map((reply, replyIdx) => {
             const meta = getReplyTypeMeta(reply.type);
+            const round = reply.type === 'material_reply' ? getReplyRound(replyIdx) : 0;
             return (
               <View key={reply.id} className={styles.timelineItem}>
                 <View className={classnames(styles.timelineDot, styles[meta.cls])} />
@@ -400,6 +418,7 @@ const RectifyPage: React.FC = () => {
                   <View className={styles.timelineHeader}>
                     <Text className={styles.timelineTitle} style={{ color: meta.color }}>
                       {meta.dot} {meta.label}
+                      {round > 0 && <Text className={styles.roundTag}>第{round}轮</Text>}
                     </Text>
                     {canStartReinspect(reply) && (
                       <View

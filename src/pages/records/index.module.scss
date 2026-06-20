@@ -423,6 +423,23 @@
   margin-bottom: $spacing-sm;
 }
 
+.dashboardCardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: $spacing-sm;
+}
+
+.exportBtn {
+  width: 56rpx;
+  height: 56rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(22, 93, 255, 0.08);
+}
+
 .dashboardGrid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

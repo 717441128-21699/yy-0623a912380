@@ -10,7 +10,7 @@ import { useInspection } from '@/store/inspectionContext';
 const todayStr = () => {
   const d = new Date();
   const pad = (n: number) => n.toString().padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return `${d.getFullYear()}-${pad(n.getMonth() + 1)}-${pad(n.getDate())}`;
 };
 
 const statusFilters: { key: string; label: string }[] = [
@@ -32,8 +32,10 @@ const categoryOptions: { key: string; label: string }[] = [
   { key: 'other', label: '其他' }
 ];
 
+type DashboardClickType = 'today' | 'passed' | 'failed' | 'rectifying';
+
 const RecordsPage: React.FC = () => {
-  const { records } = useInspection();
+  const { records, rectifyItems } = useInspection();
   const today = todayStr();
 
   const [activeFilter, setActiveFilter] = useState<string>('all');
@@ -50,9 +52,7 @@ const RecordsPage: React.FC = () => {
     records.forEach(r => {
       const isToday = r.inspectTime && r.inspectTime.slice(0, 10) === today;
       if (!stats[r.projectId]) {
-        stats[r.projectId] = {
-          today: 0, passed: 0, failed: 0, rectifying: 0, projectName: r.projectName
-        };
+        stats[r.projectId] = { today: 0, passed: 0, failed: 0, rectifying: 0, projectName: r.projectName };
       }
       if (isToday) stats[r.projectId].today++;
       if (r.status === 'passed' || r.status === 'rectified') stats[r.projectId].passed++;
@@ -75,8 +75,11 @@ const RecordsPage: React.FC = () => {
   const filteredRecords = useMemo(() => {
     let list = records;
     const effectiveStatus = filterStatus !== 'all' ? filterStatus : activeFilter;
-    if (effectiveStatus !== 'all') {
+    if (effectiveStatus !== 'all' && effectiveStatus !== 'passed_group') {
       list = list.filter(r => r.status === effectiveStatus);
+    }
+    if (effectiveStatus === 'passed_group') {
+      list = list.filter(r => r.status === 'passed' || r.status === 'rectified');
     }
     if (filterProjectId !== 'all') {
       list = list.filter(r => r.projectId === filterProjectId);
@@ -113,12 +116,33 @@ const RecordsPage: React.FC = () => {
     setActiveFilter('all');
   };
 
-  const handleProjectClick = (projectId: string, statusKey: string) => {
+  const handleProjectClick = (projectId: string, type: DashboardClickType) => {
     setFilterProjectId(projectId);
     setFilterBuildingId('all');
-    setFilterStatus(statusKey === 'all' ? 'all' : statusKey);
     setActiveFilter('all');
     setShowFilter(false);
+    switch (type) {
+      case 'today':
+        setFilterStatus('all');
+        setFilterDateStart(today);
+        setFilterDateEnd(today);
+        break;
+      case 'passed':
+        setFilterStatus('passed_group');
+        setFilterDateStart('');
+        setFilterDateEnd('');
+        break;
+      case 'failed':
+        setFilterStatus('failed');
+        setFilterDateStart('');
+        setFilterDateEnd('');
+        break;
+      case 'rectifying':
+        setFilterStatus('rectifying');
+        setFilterDateStart('');
+        setFilterDateEnd('');
+        break;
+    }
   };
 
   const handleProjectChange = (projectId: string) => {
@@ -138,10 +162,72 @@ const RecordsPage: React.FC = () => {
     });
   };
 
+  const handleExportReview = (projectId: string) => {
+    const project = mockProjects.find(p => p.id === projectId);
+    if (!project) return;
+    const ps = projectStats[projectId] || { today: 0, passed: 0, failed: 0, rectifying: 0 };
+    const projectRecords = records.filter(r => r.projectId === projectId);
+    const todayRecords = projectRecords.filter(r => r.inspectTime && r.inspectTime.slice(0, 10) === today);
+
+    const abnormalItems = todayRecords.filter(r => r.discrepancies && r.discrepancies.length > 0);
+    const rectifyingItems = rectifyItems.filter(ri => {
+      if (ri.status !== 'rectifying' && ri.status !== 'processing') return false;
+      const rec = records.find(r => r.id === ri.inspectionId);
+      return rec && rec.projectId === projectId;
+    });
+    const closedItems = projectRecords.filter(r => r.status === 'rectified');
+
+    let text = `📋 ${project.name} · ${today} 复盘清单\n`;
+    text += `━━━━━━━━━━━━━━━━━\n`;
+    text += `📊 今日统计：到货${ps.today}批 | 通过${ps.passed}批 | 不通过${ps.failed}批 | 整改中${ps.rectifying}批\n\n`;
+
+    if (abnormalItems.length > 0) {
+      text += `⚠️ 异常记录：\n`;
+      abnormalItems.forEach((r, i) => {
+        text += `${i + 1}. ${r.materialName}(${r.buildingName}) - ${r.discrepancies!.length}项不符\n`;
+        r.discrepancies!.forEach(d => {
+          text += `   · ${d.label}：报验${d.expected}，实测${d.actual}\n`;
+        });
+      });
+      text += '\n';
+    }
+
+    if (rectifyingItems.length > 0) {
+      text += `🔄 整改中：\n`;
+      rectifyingItems.forEach((ri, i) => {
+        const hasReply = ri.replies.some(r => r.type === 'material_reply');
+        text += `${i + 1}. ${ri.title} - ${hasReply ? '材料员已回复' : '待材料员处理'}\n`;
+      });
+      text += '\n';
+    }
+
+    if (closedItems.length > 0) {
+      text += `✅ 已闭环：\n`;
+      closedItems.forEach((r, i) => {
+        text += `${i + 1}. ${r.materialName}(${r.buildingName}) - 整改完成\n`;
+      });
+    }
+
+    Taro.showActionSheet({
+      itemList: ['复制到剪贴板', '转发分享'],
+      success: (res) => {
+        if (res.tapIndex === 0) {
+          Taro.setClipboardData({ data: text }).then(() => {
+            Taro.showToast({ title: '已复制复盘清单', icon: 'success' });
+          });
+        } else if (res.tapIndex === 1) {
+          Taro.showShareMenu({ withShareTicket: true });
+          Taro.showToast({ title: '请点击右上角转发', icon: 'none' });
+        }
+      }
+    });
+  };
+
   const pickerProjects = [{ id: 'all', name: '全部项目' }, ...mockProjects];
   const pickerBuildings = [{ id: 'all', name: '全部楼栋' }, ...filteredBuildings];
 
   const getStatusFilterLabel = () => {
+    if (filterStatus === 'passed_group') return '通过(含整改完成)';
     if (filterStatus !== 'all') {
       return statusFilters.find(s => s.key === filterStatus)?.label || '';
     }
@@ -155,6 +241,12 @@ const RecordsPage: React.FC = () => {
     if (filterProjectId === 'all') return '';
     const p = mockProjects.find(p => p.id === filterProjectId);
     return p ? p.name : '';
+  };
+
+  const getDateFilterLabel = () => {
+    if (filterDateStart === today && filterDateEnd === today) return ' · 今日';
+    if (filterDateStart || filterDateEnd) return ` · ${filterDateStart || '...'}~${filterDateEnd || '...'}`;
+    return '';
   };
 
   return (
@@ -189,11 +281,16 @@ const RecordsPage: React.FC = () => {
               const ps = projectStats[project.id] || { today: 0, passed: 0, failed: 0, rectifying: 0, projectName: project.name };
               return (
                 <View key={project.id} className={styles.dashboardCard}>
-                  <Text className={styles.dashboardProject}>{project.name}</Text>
+                  <View className={styles.dashboardCardHeader}>
+                    <Text className={styles.dashboardProject}>{project.name}</Text>
+                    <View className={styles.exportBtn} onClick={() => handleExportReview(project.id)}>
+                      <Text>📤</Text>
+                    </View>
+                  </View>
                   <View className={styles.dashboardGrid}>
                     <View
                       className={classnames(styles.dashboardBlock, styles.blockToday)}
-                      onClick={() => handleProjectClick(project.id, 'all')}
+                      onClick={() => handleProjectClick(project.id, 'today')}
                     >
                       <Text className={styles.dashboardBlockNum}>{ps.today}</Text>
                       <Text className={styles.dashboardBlockLabel}>今日到货</Text>
@@ -236,6 +333,7 @@ const RecordsPage: React.FC = () => {
           共 {filteredRecords.length} 条
           {getProjectFilterLabel() && ` · ${getProjectFilterLabel()}`}
           {getStatusFilterLabel() && ` · ${getStatusFilterLabel()}`}
+          {getDateFilterLabel()}
         </Text>
       </View>
 
@@ -347,6 +445,8 @@ const RecordsPage: React.FC = () => {
             onClick={() => {
               setActiveFilter(item.key);
               setFilterStatus('all');
+              setFilterDateStart('');
+              setFilterDateEnd('');
             }}
           >
             <Text>{item.label}</Text>

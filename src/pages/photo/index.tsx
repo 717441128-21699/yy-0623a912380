@@ -18,7 +18,7 @@ interface PhotoGroup {
 const genId = (prefix: string) => `${prefix}_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
 
 const PhotoPage: React.FC = () => {
-  const { currentInspection, addRecord, updateRecord, clearCurrentInspection } = useInspection();
+  const { currentInspection, addRecord, updateRecord, clearCurrentInspection, persistPhotos } = useInspection();
 
   const [photoGroups, setPhotoGroups] = useState<PhotoGroup[]>([
     { key: 'plate', label: '车牌', icon: '🚚', desc: '拍摄运输车辆车牌号，确保可清晰识别', photos: [], required: 1 },
@@ -104,24 +104,26 @@ const PhotoPage: React.FC = () => {
     return items;
   };
 
-  const doSubmit = () => {
+  const doSubmit = async () => {
     if (!currentInspection) return;
 
     Taro.showLoading({ title: '提交中...' });
 
     const photos = buildPhotos();
+    const photoUrls = photos.map(p => p.url);
+    const persistedUrls = await persistPhotos(photoUrls);
+    const persistedPhotos = photos.map((p, i) => ({ ...p, url: persistedUrls[i] }));
+
     const hasDisc = currentInspection.discrepancies && currentInspection.discrepancies.length > 0;
 
     const finalRecord: InspectionRecord = {
       ...(currentInspection as InspectionRecord),
-      photos,
+      photos: persistedPhotos,
       status: allComplete
         ? (hasDisc ? 'rectifying' : 'passed')
         : (currentInspection.status || 'pending'),
       inspectTime: currentInspection.inspectTime || new Date().toLocaleString()
     };
-
-    console.log('[Photo] submitting record:', finalRecord);
 
     setTimeout(() => {
       Taro.hideLoading();
