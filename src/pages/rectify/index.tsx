@@ -1,29 +1,46 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, Image, Textarea } from '@tarojs/components';
 import Taro from '@tarojs/taro';
+import { useRouter } from '@tarojs/taro';
+import classnames from 'classnames';
 import styles from './index.module.scss';
 import StatusTag from '@/components/StatusTag';
-import { mockRectifyItems, mockInspectionRecords } from '@/data/mock';
+import { useInspection } from '@/store/inspectionContext';
+
+const formatTime = () => {
+  const now = new Date();
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+};
 
 const RectifyPage: React.FC = () => {
+  const router = useRouter();
+  const id = router.params.id;
+
+  const {
+    getRectifyById, getRecordById,
+    updateRectifyItem, updateRecord
+  } = useInspection();
+
+  const [role, setRole] = useState<'supervisor' | 'material'>('material');
   const [replyText, setReplyText] = useState('');
   const [uploadPhotos, setUploadPhotos] = useState<string[]>([]);
 
   const rectifyItem = useMemo(() => {
-    return mockRectifyItems[0] || null;
-  }, []);
+    return getRectifyById(id || '');
+  }, [id, getRectifyById]);
 
   const relatedInspection = useMemo(() => {
     if (!rectifyItem) return null;
-    return mockInspectionRecords.find(r => r.id === rectifyItem.inspectionId) || null;
-  }, [rectifyItem]);
+    return getRecordById(rectifyItem.inspectionId);
+  }, [rectifyItem, getRecordById]);
 
   const timeline = useMemo(() => {
     if (!rectifyItem) return [];
     const items: any[] = [
       {
         type: 'warning',
-        title: '提交整改通知',
+        title: '监理提交整改通知',
         time: rectifyItem.submitTime,
         desc: rectifyItem.description,
         photos: rectifyItem.photos
@@ -32,7 +49,7 @@ const RectifyPage: React.FC = () => {
     if (rectifyItem.reply) {
       items.push({
         type: 'active',
-        title: '材料员已回复',
+        title: '材料员整改回复',
         time: rectifyItem.replyTime,
         desc: rectifyItem.reply,
         photos: []
@@ -52,7 +69,7 @@ const RectifyPage: React.FC = () => {
 
   const handleUpload = () => {
     Taro.chooseImage({
-      count: 3,
+      count: 6,
       sizeType: ['compressed'],
       sourceType: ['camera', 'album'],
       success: (res) => {
@@ -61,39 +78,64 @@ const RectifyPage: React.FC = () => {
     });
   };
 
-  const handleConfirm = () => {
+  const handleDeletePhoto = (idx: number) => {
+    setUploadPhotos(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleSubmitReply = () => {
+    if (!replyText.trim() && uploadPhotos.length === 0) {
+      Taro.showToast({ title: '请填写整改说明或上传照片', icon: 'none' });
+      return;
+    }
+    if (!rectifyItem) return;
+
+    Taro.showLoading({ title: '提交中...' });
+    setTimeout(() => {
+      Taro.hideLoading();
+      updateRectifyItem(rectifyItem.id, {
+        status: 'processing',
+        reply: replyText,
+        replyTime: formatTime(),
+        photos: [...rectifyItem.photos, ...uploadPhotos]
+      });
+      Taro.showToast({ title: '已提交整改回复', icon: 'success' });
+      setReplyText('');
+      setUploadPhotos([]);
+    }, 600);
+  };
+
+  const handleConfirmPass = () => {
+    if (!rectifyItem) return;
     Taro.showModal({
-      title: '确认整改完成',
+      title: '确认整改通过',
       content: '确认该整改事项已完成，材料符合要求？',
       success: (res) => {
         if (res.confirm) {
-          Taro.showToast({
-            title: '已确认整改通过',
-            icon: 'success'
-          });
-          setTimeout(() => {
-            Taro.navigateBack();
-          }, 1500);
+          updateRectifyItem(rectifyItem.id, { status: 'done' });
+          if (relatedInspection) {
+            updateRecord(relatedInspection.id, { status: 'rectified' });
+          }
+          Taro.showToast({ title: '已确认整改通过', icon: 'success' });
+          setTimeout(() => Taro.navigateBack(), 1200);
         }
       }
     });
   };
 
-  const handleReject = () => {
+  const handleRequireMore = () => {
     if (!replyText.trim()) {
-      Taro.showToast({
-        title: '请填写驳回原因',
-        icon: 'none'
-      });
+      Taro.showToast({ title: '请填写补充要求', icon: 'none' });
       return;
     }
-    Taro.showToast({
-      title: '已发送补充整改要求',
-      icon: 'none'
+    if (!rectifyItem) return;
+    updateRectifyItem(rectifyItem.id, {
+      status: 'pending',
+      reply: `${rectifyItem.reply || ''}\n\n【监理补充要求】${replyText}`,
+      replyTime: formatTime()
     });
-    setTimeout(() => {
-      Taro.navigateBack();
-    }, 1500);
+    Taro.showToast({ title: '已发送补充要求', icon: 'none' });
+    setReplyText('');
+    setTimeout(() => Taro.navigateBack(), 1200);
   };
 
   const handleViewInspection = () => {
@@ -106,13 +148,15 @@ const RectifyPage: React.FC = () => {
 
   if (!rectifyItem) {
     return (
-      <View className={styles.page}>
-        <Text>加载中...</Text>
+      <View className={styles.page} style={{ padding: '64rpx 32rpx', textAlign: 'center' }}>
+        <Text style={{ fontSize: '28rpx', color: '#86909C' }}>整改事项不存在</Text>
       </View>
     );
   }
 
-  const isSupervisorView = true; // 模拟监理视角
+  const canMaterialSubmit = role === 'material' && (rectifyItem.status === 'pending' || rectifyItem.status === 'processing');
+  const canSupervisorConfirm = role === 'supervisor' && rectifyItem.status === 'processing' && rectifyItem.reply;
+  const canSupervisorReject = role === 'supervisor' && rectifyItem.status === 'processing';
 
   return (
     <View className={styles.page}>
@@ -129,6 +173,34 @@ const RectifyPage: React.FC = () => {
           <Text style={{ marginLeft: '16rpx', fontSize: '24rpx', opacity: 0.9 }}>
             截止日期：{rectifyItem.deadline}
           </Text>
+        </View>
+        <View style={{ marginTop: '16rpx', display: 'flex', gap: '12rpx' }}>
+          <View
+            className={classnames({ [styles.activeRole]: role === 'material' })}
+            style={{
+              padding: '6rpx 20rpx',
+              borderRadius: '32rpx',
+              fontSize: '22rpx',
+              background: role === 'material' ? '#fff' : 'rgba(255,255,255,0.2)',
+              color: role === 'material' ? '#FF7D00' : '#fff'
+            }}
+            onClick={() => setRole('material')}
+          >
+            <Text>切换：材料员视角</Text>
+          </View>
+          <View
+            className={classnames({ [styles.activeRole]: role === 'supervisor' })}
+            style={{
+              padding: '6rpx 20rpx',
+              borderRadius: '32rpx',
+              fontSize: '22rpx',
+              background: role === 'supervisor' ? '#fff' : 'rgba(255,255,255,0.2)',
+              color: role === 'supervisor' ? '#FF7D00' : '#fff'
+            }}
+            onClick={() => setRole('supervisor')}
+          >
+            <Text>切换：监理视角</Text>
+          </View>
         </View>
       </View>
 
@@ -151,15 +223,6 @@ const RectifyPage: React.FC = () => {
         <View className={styles.descBox}>
           <Text>{rectifyItem.description}</Text>
         </View>
-        {rectifyItem.photos.length > 0 && (
-          <View className={styles.photoGrid}>
-            {rectifyItem.photos.map((photo, idx) => (
-              <View key={idx} className={styles.photoItem}>
-                <Image className={styles.photoImg} src={photo} mode="aspectFill" />
-              </View>
-            ))}
-          </View>
-        )}
       </View>
 
       <View className={styles.section}>
@@ -167,7 +230,7 @@ const RectifyPage: React.FC = () => {
           <Text className={styles.sectionIcon}>📦</Text>
           <Text>关联验收单</Text>
         </View>
-        {relatedInspection && (
+        {relatedInspection ? (
           <View className={styles.relatedCard} onClick={handleViewInspection}>
             <View className={styles.relatedIcon}>
               <Text>📋</Text>
@@ -177,9 +240,15 @@ const RectifyPage: React.FC = () => {
               <Text className={styles.relatedDesc}>
                 {relatedInspection.projectName} · {relatedInspection.buildingName}
               </Text>
+              <Text className={styles.relatedDesc} style={{ color: '#F53F3F', marginTop: '4rpx' }}>
+                {relatedInspection.specModel} · {relatedInspection.quantity}{relatedInspection.unit}
+                {relatedInspection.discrepancies?.length > 0 && ` · ${relatedInspection.discrepancies.length}项不符`}
+              </Text>
             </View>
             <Text className={styles.relatedArrow}>{'>'}</Text>
           </View>
+        ) : (
+          <Text style={{ fontSize: '26rpx', color: '#86909C' }}>未找到关联验收单</Text>
         )}
       </View>
 
@@ -211,7 +280,47 @@ const RectifyPage: React.FC = () => {
         </View>
       </View>
 
-      {isSupervisorView && rectifyItem.status === 'processing' && (
+      {role === 'material' && canMaterialSubmit && (
+        <View className={styles.section}>
+          <View className={styles.sectionTitle}>
+            <Text className={styles.sectionIcon}>📝</Text>
+            <Text>提交整改回复</Text>
+          </View>
+          <Textarea
+            className={styles.textarea}
+            placeholder='请填写整改情况说明，例如：已将不合格批次退场，重新进场合格材料...'
+            value={replyText}
+            onInput={e => setReplyText(e.detail.value)}
+          />
+          <View className={styles.uploadRow}>
+            {uploadPhotos.map((photo, idx) => (
+              <View key={idx} style={{ position: 'relative' }}>
+                <View className={styles.photoItem}>
+                  <Image className={styles.photoImg} src={photo} mode="aspectFill" />
+                </View>
+                <View
+                  style={{
+                    position: 'absolute', top: '4rpx', right: '4rpx',
+                    width: '40rpx', height: '40rpx', borderRadius: '50%',
+                    background: 'rgba(0,0,0,0.6)', color: '#fff',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '26rpx', zIndex: 2
+                  }}
+                  onClick={() => handleDeletePhoto(idx)}
+                >
+                  <Text>×</Text>
+                </View>
+              </View>
+            ))}
+            <View className={styles.uploadBtn} onClick={handleUpload}>
+              <Text className={styles.uploadIcon}>+</Text>
+              <Text>上传退场/补充资料照片</Text>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {role === 'supervisor' && canSupervisorConfirm && (
         <View className={styles.section}>
           <View className={styles.sectionTitle}>
             <Text className={styles.sectionIcon}>✅</Text>
@@ -222,10 +331,10 @@ const RectifyPage: React.FC = () => {
             <Text className={styles.replyContent}>{rectifyItem.reply}</Text>
             <Text className={styles.replyTime}>回复时间：{rectifyItem.replyTime}</Text>
           </View>
-          <View className={styles.inputSection}>
+          <View style={{ marginTop: '16rpx' }}>
             <Textarea
               className={styles.textarea}
-              placeholder='如有异议可填写补充要求，无异议可直接确认通过'
+              placeholder='如有异议可填写补充整改要求，无异议留空后直接确认通过'
               value={replyText}
               onInput={e => setReplyText(e.detail.value)}
             />
@@ -233,51 +342,23 @@ const RectifyPage: React.FC = () => {
         </View>
       )}
 
-      {!isSupervisorView && rectifyItem.status === 'pending' && (
-        <View className={styles.section}>
-          <View className={styles.sectionTitle}>
-            <Text className={styles.sectionIcon}>📝</Text>
-            <Text>提交整改回复</Text>
-          </View>
-          <Textarea
-            className={styles.textarea}
-            placeholder='请填写整改情况说明...'
-            value={replyText}
-            onInput={e => setReplyText(e.detail.value)}
-          />
-          <View className={styles.uploadRow}>
-            {uploadPhotos.map((photo, idx) => (
-              <View key={idx} className={styles.photoItem}>
-                <Image className={styles.photoImg} src={photo} mode="aspectFill" />
-              </View>
-            ))}
-            <View className={styles.uploadBtn} onClick={handleUpload}>
-              <Text className={styles.uploadIcon}>+</Text>
-              <Text>上传照片</Text>
-            </View>
-          </View>
-        </View>
-      )}
-
-      {rectifyItem.status !== 'done' && (
+      {(canMaterialSubmit || canSupervisorConfirm || canSupervisorReject) && (
         <View className={styles.bottomBar}>
-          {isSupervisorView && rectifyItem.status === 'processing' ? (
+          {canMaterialSubmit && (
+            <View className={classnames(styles.btnWarning, { [styles.disabled]: !replyText.trim() && uploadPhotos.length === 0 })}
+              onClick={handleSubmitReply}>
+              <Text>提交整改回复</Text>
+            </View>
+          )}
+          {canSupervisorConfirm && (
             <>
-              <View className={styles.btnSecondary} onClick={handleReject}>
-                <Text>要求补充</Text>
+              <View className={styles.btnSecondary} onClick={handleRequireMore}>
+                <Text>要求补充整改</Text>
               </View>
-              <View className={styles.btnPrimary} onClick={handleConfirm}>
+              <View className={styles.btnPrimary} onClick={handleConfirmPass}>
                 <Text>确认整改通过</Text>
               </View>
             </>
-          ) : !isSupervisorView && rectifyItem.status === 'pending' ? (
-            <View className={styles.btnWarning}>
-              <Text>提交整改回复</Text>
-            </View>
-          ) : (
-            <View className={styles.btnPrimary}>
-              <Text>前往处理</Text>
-            </View>
           )}
         </View>
       )}

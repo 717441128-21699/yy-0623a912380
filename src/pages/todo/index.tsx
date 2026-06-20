@@ -4,7 +4,7 @@ import Taro from '@tarojs/taro';
 import classnames from 'classnames';
 import styles from './index.module.scss';
 import StatusTag from '@/components/StatusTag';
-import { mockRectifyItems } from '@/data/mock';
+import { useInspection } from '@/store/inspectionContext';
 
 const statusTabs = [
   { key: 'pending', label: '待处理' },
@@ -14,22 +14,31 @@ const statusTabs = [
 
 const TodoPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('pending');
+  const { rectifyItems, records } = useInspection();
 
   const filteredItems = useMemo(() => {
-    return mockRectifyItems.filter(item => {
+    return rectifyItems.filter(item => {
       if (activeTab === 'pending') return item.status === 'pending';
       if (activeTab === 'processing') return item.status === 'processing';
       if (activeTab === 'done') return item.status === 'done';
       return true;
     });
-  }, [activeTab]);
+  }, [rectifyItems, activeTab]);
 
   const stats = useMemo(() => {
-    const pending = mockRectifyItems.filter(r => r.status === 'pending').length;
-    const processing = mockRectifyItems.filter(r => r.status === 'processing').length;
-    const done = mockRectifyItems.filter(r => r.status === 'done').length;
-    return { pending, processing, done, total: mockRectifyItems.length };
-  }, []);
+    const pending = rectifyItems.filter(r => r.status === 'pending').length;
+    const processing = rectifyItems.filter(r => r.status === 'processing').length;
+    const done = rectifyItems.filter(r => r.status === 'done').length;
+    return { pending, processing, done, total: rectifyItems.length };
+  }, [rectifyItems]);
+
+  const getItemInfo = (inspectionId: string) => {
+    const rec = records.find(r => r.id === inspectionId);
+    if (rec) {
+      return `${rec.projectName} · ${rec.buildingName} · ${rec.materialName}`;
+    }
+    return '';
+  };
 
   const handleItemClick = (id: string) => {
     Taro.navigateTo({
@@ -88,24 +97,32 @@ const TodoPage: React.FC = () => {
             >
               <View className={styles.cardHeader}>
                 <Text className={styles.cardTitle}>{item.title}</Text>
-                <StatusTag status={item.status} text={
-                  item.status === 'pending' ? '待处理' : item.status === 'processing' ? '处理中' : '已完成'
-                } />
+                <StatusTag
+                  status={item.status}
+                  text={
+                    item.status === 'pending' ? '待处理' :
+                    item.status === 'processing' ? '处理中' : '已完成'
+                  }
+                />
               </View>
               <Text className={styles.desc}>{item.description}</Text>
               <View className={styles.metaRow}>
-                <Text className={styles.metaLabel}>提交人：</Text>
+                <Text className={styles.metaLabel}>项目信息</Text>
+                <Text className={styles.metaValue}>{getItemInfo(item.inspectionId) || '暂无关联'}</Text>
+              </View>
+              <View className={styles.metaRow}>
+                <Text className={styles.metaLabel}>提交人</Text>
                 <Text className={styles.metaValue}>{item.submitter}</Text>
               </View>
               <View className={styles.metaRow}>
-                <Text className={styles.metaLabel}>提交时间：</Text>
+                <Text className={styles.metaLabel}>提交时间</Text>
                 <Text className={styles.metaValue}>{item.submitTime}</Text>
               </View>
               <View className={styles.metaRow}>
-                <Text className={styles.metaLabel}>截止日期：</Text>
+                <Text className={styles.metaLabel}>截止日期</Text>
                 <Text className={classnames(styles.metaValue, isUrgent(item.deadline) && styles.urgent)}>
                   {item.deadline}
-                  {isUrgent(item.deadline) && ' (临近到期)'}
+                  {isUrgent(item.deadline) && item.status !== 'done' && ' (临近到期)'}
                 </Text>
               </View>
               {item.photos.length > 0 && (
@@ -119,7 +136,7 @@ const TodoPage: React.FC = () => {
               )}
               <View className={styles.cardFooter}>
                 <Text className={styles.submitter}>
-                  {item.reply ? '已有回复' : '等待材料员回复'}
+                  {item.reply ? '材料员已回复，待监理确认' : '等待材料员处理'}
                 </Text>
                 {isUrgent(item.deadline) && item.status !== 'done' && (
                   <View className={styles.deadlineTag}>
@@ -132,7 +149,9 @@ const TodoPage: React.FC = () => {
         ) : (
           <View className={styles.empty}>
             <Text className={styles.emptyIcon}>✅</Text>
-            <Text className={styles.emptyText}>暂无{activeTab === 'pending' ? '待处理' : activeTab === 'processing' ? '处理中' : '已完成'}事项</Text>
+            <Text className={styles.emptyText}>
+              暂无{activeTab === 'pending' ? '待处理' : activeTab === 'processing' ? '处理中' : '已完成'}事项
+            </Text>
           </View>
         )}
       </ScrollView>

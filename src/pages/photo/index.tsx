@@ -1,8 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { View, Text, Image } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import classnames from 'classnames';
 import styles from './index.module.scss';
+import { useInspection } from '@/store/inspectionContext';
+import { InspectionRecord, PhotoItem } from '@/types';
 
 interface PhotoGroup {
   key: string;
@@ -13,43 +15,32 @@ interface PhotoGroup {
   required: number;
 }
 
+const genId = (prefix: string) => `${prefix}_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+
 const PhotoPage: React.FC = () => {
+  const { currentInspection, addRecord, updateRecord, clearCurrentInspection } = useInspection();
+
   const [photoGroups, setPhotoGroups] = useState<PhotoGroup[]>([
-    {
-      key: 'plate',
-      label: '车牌',
-      icon: '🚚',
-      desc: '拍摄运输车辆车牌号，确保可清晰识别',
-      photos: [],
-      required: 1
-    },
-    {
-      key: 'nameplate',
-      label: '铭牌',
-      icon: '🏷️',
-      desc: '拍摄材料铭牌/标识牌，显示规格、批号、生产厂家等信息',
-      photos: [],
-      required: 1
-    },
-    {
-      key: 'stacking',
-      label: '堆放位置',
-      icon: '📍',
-      desc: '拍摄材料堆放位置，能反映现场环境和堆放情况',
-      photos: [],
-      required: 1
-    },
-    {
-      key: 'sampling',
-      label: '抽检部位',
-      icon: '🔍',
-      desc: '拍摄抽检部位细节，反映材料质量状况',
-      photos: [],
-      required: 2
-    }
+    { key: 'plate', label: '车牌', icon: '🚚', desc: '拍摄运输车辆车牌号，确保可清晰识别', photos: [], required: 1 },
+    { key: 'nameplate', label: '铭牌', icon: '🏷️', desc: '拍摄材料铭牌/标识牌，显示规格、批号、生产厂家等信息', photos: [], required: 1 },
+    { key: 'stacking', label: '堆放位置', icon: '📍', desc: '拍摄材料堆放位置，能反映现场环境和堆放情况', photos: [], required: 1 },
+    { key: 'sampling', label: '抽检部位', icon: '🔍', desc: '拍摄抽检部位细节，反映材料质量状况', photos: [], required: 2 }
   ]);
 
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!currentInspection) {
+      Taro.showModal({
+        title: '请先完成到货核验',
+        content: '请先填写到货核验信息再进行拍照',
+        showCancel: false,
+        success: () => {
+          Taro.navigateBack();
+        }
+      });
+    }
+  }, [currentInspection]);
 
   const missingCount = useMemo(() => {
     return photoGroups.reduce((count, group) => {
@@ -71,10 +62,7 @@ const PhotoPage: React.FC = () => {
       sourceType: ['camera', 'album'],
       success: (res) => {
         const newGroups = [...photoGroups];
-        newGroups[groupIndex].photos = [
-          ...newGroups[groupIndex].photos,
-          ...res.tempFilePaths
-        ];
+        newGroups[groupIndex].photos = [...newGroups[groupIndex].photos, ...res.tempFilePaths];
         setPhotoGroups(newGroups);
       },
       fail: (err) => {
@@ -90,8 +78,65 @@ const PhotoPage: React.FC = () => {
     setPhotoGroups(newGroups);
   };
 
-  const handlePreview = (url: string) => {
-    setPreviewUrl(url);
+  const buildPhotos = (): PhotoItem[] => {
+    const items: PhotoItem[] = [];
+    photoGroups.forEach(group => {
+      if (group.photos.length > 0) {
+        group.photos.forEach(url => {
+          items.push({
+            id: genId('ph'),
+            category: group.key as any,
+            categoryLabel: group.label,
+            url,
+            uploaded: true
+          });
+        });
+      } else {
+        items.push({
+          id: genId('ph'),
+          category: group.key as any,
+          categoryLabel: group.label,
+          url: '',
+          uploaded: false
+        });
+      }
+    });
+    return items;
+  };
+
+  const doSubmit = () => {
+    if (!currentInspection) return;
+
+    Taro.showLoading({ title: '提交中...' });
+
+    const photos = buildPhotos();
+    const hasDisc = currentInspection.discrepancies && currentInspection.discrepancies.length > 0;
+
+    const finalRecord: InspectionRecord = {
+      ...(currentInspection as InspectionRecord),
+      photos,
+      status: allComplete
+        ? (hasDisc ? 'rectifying' : 'passed')
+        : (currentInspection.status || 'pending'),
+      inspectTime: currentInspection.inspectTime || new Date().toLocaleString()
+    };
+
+    console.log('[Photo] submitting record:', finalRecord);
+
+    setTimeout(() => {
+      Taro.hideLoading();
+      addRecord(finalRecord);
+      clearCurrentInspection();
+
+      Taro.showToast({
+        title: '验收记录已提交',
+        icon: 'success'
+      });
+
+      setTimeout(() => {
+        Taro.switchTab({ url: '/pages/records/index' });
+      }, 1500);
+    }, 800);
   };
 
   const handleSubmit = () => {
@@ -102,9 +147,7 @@ const PhotoPage: React.FC = () => {
         confirmText: '继续提交',
         cancelText: '返回拍摄',
         success: (res) => {
-          if (res.confirm) {
-            doSubmit();
-          }
+          if (res.confirm) doSubmit();
         }
       });
       return;
@@ -112,25 +155,13 @@ const PhotoPage: React.FC = () => {
     doSubmit();
   };
 
-  const doSubmit = () => {
-    Taro.showLoading({ title: '提交中...' });
-    setTimeout(() => {
-      Taro.hideLoading();
-      Taro.showToast({
-        title: '验收记录已提交',
-        icon: 'success'
-      });
-      setTimeout(() => {
-        Taro.switchTab({
-          url: '/pages/records/index'
-        });
-      }, 1500);
-    }, 1000);
-  };
-
   const handleBack = () => {
     Taro.navigateBack();
   };
+
+  if (!currentInspection) {
+    return <View className={styles.page}><Text>加载中...</Text></View>;
+  }
 
   return (
     <View className={styles.page}>
@@ -152,6 +183,12 @@ const PhotoPage: React.FC = () => {
       </View>
 
       <View className={styles.section}>
+        <View style={{ padding: '16rpx', background: '#f0f5ff', borderRadius: '12rpx', marginBottom: '24rpx' }}>
+          <Text style={{ fontSize: '26rpx', color: '#165DFF' }}>
+            正在验收：{currentInspection.projectName} - {currentInspection.buildingName} · {currentInspection.materialName}
+          </Text>
+        </View>
+
         <View className={styles.sectionTitle}>
           <Text>现场拍照</Text>
           {missingCount > 0 && (
@@ -202,7 +239,7 @@ const PhotoPage: React.FC = () => {
                       className={styles.photoImg}
                       src={photo}
                       mode="aspectFill"
-                      onClick={() => handlePreview(photo)}
+                      onClick={() => setPreviewUrl(photo)}
                     />
                     <View
                       className={styles.deleteBtn}

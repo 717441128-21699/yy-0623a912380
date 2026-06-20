@@ -361,3 +361,12 @@
   font-size: $font-size-lg;
   color: $color-text-tertiary;
 }
+
+.activeRole {
+  font-weight: $font-weight-semibold;
+}
+
+.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
